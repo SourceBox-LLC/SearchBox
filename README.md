@@ -57,11 +57,12 @@ Set these in `docker-compose.yml` or a `.env` file:
 |---|---|---|
 | `FLASK_SECRET_KEY` | auto-generated | Flask session secret |
 | `MEILI_MASTER_KEY` | `aSampleMasterKey` | Meilisearch authentication key |
+| `MEILI_HOST` | `http://localhost` | Meilisearch host URL |
 | `MEILI_PORT` | `7700` | Meilisearch port |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama API URL |
-| `SEARCHBOX_HOST` | `0.0.0.0` | Flask bind address |
+| `SEARCHBOX_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Flask bind address |
 | `SEARCHBOX_PORT` | `5000` | Flask port |
-| `SEARCHBOX_DB_DIR` | `/app/instance` | SQLite database directory |
+| `SEARCHBOX_DB_DIR` | project root (`/app/instance` in Docker) | SQLite database directory |
 
 ### Local Development (without Docker)
 
@@ -138,7 +139,7 @@ SearchBox can index ZIM archives (the offline format used by Wikipedia, Stack Ex
 ### Performance Features
 
 - **Multithreaded extraction** — `hardware_concurrency() - 2` worker threads (minimum 2) for parallel HTML parsing, image resolution, and thumbnail generation
-- **SVG rasterization** — SVG images rendered to JPEG thumbnails via `librsvg` and `cairo`, with icon filtering (skips UI icons < 64px)
+- **SVG rasterization** — SVG images rendered to JPEG thumbnails via `librsvg` and `cairo`, with icon filtering (skips UI icons ≤ 64px)
 - **Image deduplication** — tracks image usage across articles to avoid repeated banners/logos dominating thumbnails
 - **Adaptive resource monitor** — reads `/proc/meminfo` every 50 articles to dynamically adjust batch sizes (10–400), defer image processing under memory pressure, and apply backpressure sleep during high load
 - **Bounded work queue** — prevents memory explosion on large archives by limiting in-flight work items
@@ -162,7 +163,7 @@ The Explore page (`/explore`) provides a visual, browsable grid of all indexed d
 - **Filter pills** — narrow by file type (PDF, DOCX, TXT, MD, Images)
 - **Sort** — by recent, name, or file size
 - **Infinite scroll** — loads 40 documents at a time
-- **Source badges** — folder, vault, or qBittorrent origin
+- **Source badges** — folder, vault, qBittorrent, ZIM, or ZIP origin
 - Click any card to open the document viewer
 
 ---
@@ -283,7 +284,7 @@ Output is JSON (single file) or JSONL (batch/ZIM) on stdout. Logs go to stderr. 
 Multi-stage build:
 
 1. **Stage 1** (`debian:bookworm`) — compiles the C++ extractor with CMake, linking MuPDF, libzim, librsvg, cairo, Gumbo, and all dependencies
-2. **Stage 2** (`python3.10-bookworm-slim`) — runtime image with Meilisearch, Python deps, and the compiled binary
+2. **Stage 2** (`uv:python3.10-bookworm-slim`) — runtime image with uv, Meilisearch, Python deps, and the compiled binary
 
 Both stages use Debian Bookworm for glibc compatibility. The entrypoint starts Meilisearch, waits for its health check, then starts the Flask app.
 
@@ -307,7 +308,7 @@ Deferred images are queued and processed later when memory recovers below 50%.
 SearchBox/
 ├── app.py                     # Flask application factory and entrypoint
 ├── config.py                  # Constants (paths, allowed extensions)
-├── models.py                  # SQLAlchemy models (Settings, IndexedFolder, VaultConfig)
+├── models.py                  # SQLAlchemy models (Settings, IndexedFolder, VaultConfig, EncryptedFile, QBTorrent, IndexedArchive)
 ├── Dockerfile                 # Multi-stage build (C++ compiler → Python runtime)
 ├── docker-compose.yml         # Container config with volume mounts
 ├── entrypoint.sh              # Starts Meilisearch → Flask
@@ -320,12 +321,13 @@ SearchBox/
 │       └── stb/               #   stb single-header image libraries
 │
 ├── routes/                    # Flask Blueprints
+│   ├── helpers.py             #   Shared route helpers (get_config, get_index)
 │   ├── pages.py               #   Page routes (/, /settings, /view, /images, /explore)
 │   ├── documents.py           #   Document CRUD, upload, thumbnails, file serving
 │   ├── folders.py             #   Folder indexing (background), sync, removal
 │   ├── zim.py                 #   ZIM/ZIP archive indexing with progress tracking
 │   ├── meilisearch_routes.py  #   Meilisearch start/stop/status/config
-│   ├── settings.py            #   App settings API
+│   ├── settings.py            #   Search history, AI prefs, sync times, factory reset
 │   ├── vault.py               #   Vault PIN setup/verify/change/reset/lock
 │   ├── ollama.py              #   Ollama status, models, AI summaries
 │   └── qbittorrent.py         #   qBittorrent config, sync, indexed torrents
@@ -405,10 +407,12 @@ SearchBox/
 | Method | Path | Description |
 |---|---|---|
 | POST | `/api/zim/index` | Index a ZIM or ZIP archive |
+| GET | `/api/zim/index/status` | Poll archive indexing progress |
 | GET | `/api/zim/indexed` | List indexed archives |
 | POST | `/api/zim/remove` | Remove an indexed archive |
-| GET | `/api/zim/article/<archive_id>/<path>` | Serve a ZIM article |
-| GET | `/api/zim/image/<archive_id>/<path>` | Serve a ZIM image |
+| POST | `/api/zim/sync` | Re-index all tracked archives |
+| GET | `/api/zim/article?path=...&url=...` | Serve a ZIM article's HTML |
+| GET | `/api/zim/image?path=...&img=...` | Serve an image from a ZIM archive |
 
 ### Meilisearch
 
@@ -445,6 +449,21 @@ SearchBox/
 | POST | `/api/qbittorrent/sync` | Index new completed torrents |
 | GET | `/api/qbittorrent/indexed` | List indexed torrents |
 | POST | `/api/qbittorrent/remove` | Remove a torrent and its documents from the index |
+
+### Settings
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/settings/search-history` | Get saved search history |
+| POST | `/api/settings/search-history` | Add a query to search history |
+| DELETE | `/api/settings/search-history` | Clear all search history |
+| GET | `/api/settings/ai-enhancement` | Get AI history enhancement preference |
+| PUT | `/api/settings/ai-enhancement` | Set AI history enhancement preference |
+| GET | `/api/settings/last-sync-time` | Get last folder sync timestamp |
+| PUT | `/api/settings/last-sync-time` | Set last folder sync timestamp |
+| GET | `/api/settings/last-archive-sync-time` | Get last archive sync timestamp |
+| PUT | `/api/settings/last-archive-sync-time` | Set last archive sync timestamp |
+| POST | `/api/settings/factory-reset` | Wipe all data and restore defaults |
 
 ### Ollama (AI)
 
