@@ -1,0 +1,727 @@
+{% extends "base.html" %}
+
+{% block title %}SearchBox - Local Document Search{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+{% endblock %}
+
+{% block body %}
+  <!-- Global Archive Indexing Banner (visible outside modal) -->
+  <div id="global-indexing-banner" class="global-indexing-banner" style="display:none;">
+    <div class="global-indexing-content">
+      <div class="spinner" style="width:14px;height:14px;border-width:2px;"></div>
+      <span id="global-indexing-text">Archive indexing in progress...</span>
+    </div>
+  </div>
+
+  <!-- FAB Buttons (always visible) -->
+  <div class="fab-container">
+    <button class="fab upload-fab" id="fab-upload-btn" title="Upload">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+    </button>
+    <button class="fab notification-fab" id="notification-fab" title="Notifications">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+      <span class="fab-badge" id="fab-notification-badge" style="display: none;">0</span>
+    </button>
+    <a href="/settings" class="fab settings-fab" title="Settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </a>
+  </div>
+
+  <!-- Header (shown when results are visible) -->
+  <header class="header" id="header">
+    <a href="/" class="logo-small">
+      <svg class="box-logo-small" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+      </svg>
+      <span class="search">Search</span><span class="box">Box</span>
+    </a>
+    <div class="search-wrapper">
+      <div class="search-container">
+        <input type="text" class="search-input" id="header-search" placeholder="Search your documents... Try 'query::image' for image search">
+        <svg class="clear-icon" id="header-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <svg class="search-icon" id="header-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M21 21l-4.35-4.35"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="header-btn" id="header-upload-btn" title="Upload">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </button>
+      <button class="header-btn notification-btn" id="notification-btn" title="Notifications">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"></path>
+          <path d="M9 17v1a3 3 0 0 0 6 0v-1"></path>
+        </svg>
+        <span class="notification-badge" id="notification-badge" style="display: none;">0</span>
+      </button>
+      <a href="/settings" class="header-btn settings-btn" title="Settings">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container" id="main-container">
+    <!-- Logo Section -->
+    <div class="logo" id="main-logo">
+      <h1>
+        <span class="search">Search</span><span class="box">Box</span>
+        <svg class="box-logo" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+      </h1>
+      <p class="tagline">Local Document Search Engine</p>
+      <p class="powered-by">Powered by <a href="https://www.sourceboxai.com/" target="_blank">SourceBox</a></p>
+    </div>
+
+    <!-- Search Box -->
+    <div class="search-wrapper" id="main-search-wrapper">
+      <div class="search-container">
+        <input type="text" class="search-input" id="main-search" placeholder="Search your documents... Try 'query::image' for image search" autofocus>
+        <svg class="clear-icon" id="main-clear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        <svg class="search-icon" id="main-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M21 21l-4.35-4.35"></path>
+        </svg>
+      </div>
+      <div class="search-buttons">
+        <button class="search-btn primary" id="search-btn">Search Documents</button>
+        <button class="search-btn" id="image-search-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          Search Images
+        </button>
+        <a href="/explore" class="search-btn" style="text-decoration:none; display:inline-flex; align-items:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: middle;">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Explore
+        </a>
+      </div>
+    </div>
+    
+    <!-- Search Recommendations -->
+    <div class="search-recommendations" id="search-recommendations" style="display: none;">
+      <div class="recommendations-header">
+        <span>Suggested searches</span>
+        <button class="recommendations-refresh" id="recommendations-refresh" title="Refresh suggestions">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="recommendations-list" id="recommendations-list">
+        <!-- Recommendations will be loaded here -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Syntax Error Modal -->
+  <div class="syntax-error-modal" id="syntax-error-modal">
+    <div class="syntax-error-content">
+      <div class="syntax-error-header">
+        <h3>⚠️ Search Syntax Issues Detected</h3>
+        <button class="syntax-error-close" id="syntax-error-close">&times;</button>
+      </div>
+      <div class="syntax-error-body">
+        <div class="syntax-error-query">
+          <strong>Query:</strong> <code id="syntax-error-query-text"></code>
+        </div>
+        <div class="syntax-error-list" id="syntax-error-list"></div>
+        <div class="syntax-error-note">
+          <small>💡 You can continue anyway, but advanced syntax may not work properly.</small>
+        </div>
+      </div>
+      <div class="syntax-error-actions">
+        <button class="syntax-error-btn secondary" id="syntax-error-fix">Fix Syntax</button>
+        <button class="syntax-error-btn primary" id="syntax-error-continue">Continue Anyway</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Container -->
+  <div class="results-container" id="results-container">
+    <!-- AI Summary Container -->
+    <div class="ai-summary-container" id="ai-summary-container" style="display: none;">
+      <div class="ai-summary-header">
+        <div class="ai-summary-title">
+          <span class="ai-icon">🤖</span>
+          <span>AI Summary</span>
+          <span class="confidence-badge" id="confidence-badge"></span>
+        </div>
+        <button class="summary-refresh" id="summary-refresh" title="Regenerate summary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="ai-summary-body">
+        <div class="ai-summary-content" id="ai-summary-content">
+          <!-- Summary content will be loaded here -->
+        </div>
+        <div class="ai-summary-sources" id="ai-summary-sources" style="display: none;">
+          <!-- Top cited sources will be loaded here -->
+        </div>
+      </div>
+      <div class="ai-summary-footer" id="ai-summary-footer">
+        <!-- Metadata and citations will be loaded here -->
+      </div>
+    </div>
+    
+    <div class="results-stats" id="results-stats"></div>
+    
+    <!-- Two-Column Layout -->
+    <div class="two-column-layout" id="two-column-layout">
+      <!-- Left Column: Search Results -->
+      <div class="left-column">
+        <div id="results-list"></div>
+      </div>
+      
+      <!-- Right Column: Image Gallery -->
+      <div class="right-column" id="right-column">
+        <div class="gallery-images-vertical" id="gallery-images-vertical"></div>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- Image Preview Modal -->
+  <div class="image-preview-modal" id="image-preview-modal">
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18"></path>
+          <path d="M6 6l12 12"></path>
+        </svg>
+      </button>
+      
+      <div class="modal-image-container">
+        <img id="modal-image" src="" alt="">
+      </div>
+      
+      <div class="modal-info">
+        <h3 id="modal-title">Document Name</h3>
+        <div class="modal-meta">
+          <span class="file-type-badge" id="modal-file-type">DOCX</span>
+          <span class="image-number" id="modal-image-number">Image 1</span>
+        </div>
+        <p class="modal-description">Click "View Document" to see the full document containing this image.</p>
+        
+        <div class="modal-actions">
+          <button class="btn-primary" id="view-document-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15,3 21,3 21,9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            View Document
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer" id="footer">
+    <div class="footer-content">
+      <span>© 2026 <a href="https://www.sourceboxai.com/" target="_blank">SourceBox LLC</a></span>
+      <span>Open Source • Self-Hosted • Private</span>
+    </div>
+  </footer>
+
+  <!-- Help Button -->
+  <button class="help-btn" id="help-btn" title="Help & Commands">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 8a3.5 3.5 0 0 1 3.5 -3h1a3.5 3.5 0 0 1 3.5 3a3 3 0 0 1 -2 3a3 4 0 0 0 -2 4"></path>
+      <path d="M12 19l0 .01"></path>
+    </svg>
+  </button>
+
+  <!-- Help Modal -->
+  <div class="modal-overlay" id="help-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Help & Search Commands</h2>
+        <button class="modal-close" id="help-modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="help-section">
+          <h3>🚀 Advanced Search Syntax</h3>
+          <p>SearchBox supports powerful, programming-style search operators for precise document discovery:</p>
+          
+          <div class="help-example">
+            <code>machine learning::pdf::docx</code>
+            <span class="help-desc">Search "machine learning" in PDFs and Word documents</span>
+          </div>
+          
+          <div class="help-example">
+            <code>"neural networks"::pdf::&& "deep learning"::txt</code>
+            <span class="help-desc">Find PDFs about neural networks AND TXT files about deep learning</span>
+          </div>
+          
+          <div class="help-example">
+            <code>ai research::pdf::|| "machine learning"::docx</code>
+            <span class="help-desc">PDFs about AI research OR Word documents about machine learning</span>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>📋 Supported File Types</h3>
+          <p>Filter by any supported document format:</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin: 16px 0;">
+            <div class="help-example">
+              <code>::pdf</code>
+              <span class="help-desc">PDF documents</span>
+            </div>
+            <div class="help-example">
+              <code>::docx ::doc</code>
+              <span class="help-desc">Word documents</span>
+            </div>
+            <div class="help-example">
+              <code>::txt ::md</code>
+              <span class="help-desc">Text files</span>
+            </div>
+            <div class="help-example">
+              <code>::jpg ::jpeg ::png ::gif ::webp ::svg ::bmp</code>
+              <span class="help-desc">Image files</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>🔧 Boolean Operators</h3>
+          <p>Use programming-style operators for complex searches:</p>
+          
+          <div class="help-example">
+            <code>::&&</code>
+            <span class="help-desc"><strong>AND</strong> - Both conditions must be met</span>
+          </div>
+          
+          <div class="help-example">
+            <code>::||</code>
+            <span class="help-desc"><strong>OR</strong> - Either condition can be met</span>
+          </div>
+          
+          <div class="help-example">
+            <code>::!</code>
+            <span class="help-desc"><strong>NOT</strong> - Exclude specific file types</span>
+          </div>
+          
+          <div class="help-example">
+            <code>research::pdf::docx::! draft::tmp</code>
+            <span class="help-desc">PDF/DOCX research files, but NOT drafts or temp files</span>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>🎯 Real-Time Syntax Validation</h3>
+          <p>SearchBox provides instant feedback as you type:</p>
+          <ul class="help-list">
+            <li><strong>🟢 Green Border</strong>: Syntax is valid and ready to search</li>
+            <li><strong>🟠 Orange Border</strong>: Incomplete operator (add search terms)</li>
+            <li><strong>🔴 Red Border</strong>: Syntax error (check file types, operators)</li>
+            <li><strong>⚠️ Error Modal</strong>: Detailed suggestions when search has issues</li>
+          </ul>
+          
+          <div class="help-example">
+            <code>ml::pdf::&& ai::txt</code>
+            <span class="help-desc">✅ Valid syntax - green border appears</span>
+          </div>
+          
+          <div class="help-example">
+            <code>test::xyz</code>
+            <span class="help-desc">❌ Invalid file type - red border + error modal</span>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>🌟 Wildcard & Special Searches</h3>
+          <p>Browse documents and use special patterns:</p>
+          
+          <div class="help-example">
+            <code>*::pdf</code>
+            <span class="help-desc">Show ALL PDF files in your index</span>
+          </div>
+          
+          <div class="help-example">
+            <code>*</code>
+            <span class="help-desc">Browse all indexed documents</span>
+          </div>
+          
+          <div class="help-example">
+            <code>"exact phrase"::pdf</code>
+            <span class="help-desc">Search for exact phrases in specific file types</span>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <h3>🔐 Vault Security</h3>
+          <p>Protected documents require PIN access:</p>
+          <ul class="help-list">
+            <li>🔒 <strong>Vault documents</strong> show with lock icons in results</li>
+            <li>🔑 <strong>4-digit PIN</strong> required for access (set in Settings)</li>
+            <li>⚡ <strong>Auto-submit</strong> when PIN is fully entered</li>
+            <li>🔍 <strong>Advanced search</strong> works with vault documents too</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3>📂 Document Management</h3>
+          <p>Upload and organize your document library:</p>
+          <ul class="help-list">
+            <li>📤 <strong>Upload Files</strong>: Add individual documents to vault or index</li>
+            <li>📁 <strong>Index Folders</strong>: Add entire directories to search</li>
+            <li>🔄 <strong>Auto-indexing</strong>: Changes detected automatically</li>
+            <li>⚙️ <strong>Settings</strong>: Configure vault, folders, and search engine</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3>💡 Pro Tips</h3>
+          <ul class="help-list">
+            <li>🎯 <strong>Start simple</strong>: Try <code>topic::pdf</code> before complex queries</li>
+            <li>🔗 <strong>Chain operators</strong>: <code>ml::pdf::&& ai::txt::|| "deep learning"::docx</code></li>
+            <li>📝 <strong>Multi-type</strong>: <code>research::pdf::docx::txt::md</code> for comprehensive results</li>
+            <li>🚫 <strong>Exclude noise</strong>: <code>documents::pdf::! draft::tmp::backup</code></li>
+            <li>📱 <strong>Mobile friendly</strong>: All advanced features work on mobile devices</li>
+          </ul>
+        </div>
+
+        <div class="help-section">
+          <h3>🎨 Search Examples</h3>
+          <p>Real-world examples to get you started:</p>
+          
+          <div class="help-example">
+            <code>machine learning::pdf::docx</code>
+            <span class="help-desc">Academic papers on ML</span>
+          </div>
+          
+          <div class="help-example">
+            <code>"financial report"::pdf::! draft::temp</code>
+            <span class="help-desc">Final financial reports only</span>
+          </div>
+          
+          <div class="help-example">
+            <code>ai::pdf::&& robotics::txt::|| automation::docx</code>
+            <span class="help-desc">Complex research query</span>
+          </div>
+          
+          <div class="help-example">
+            <code>*::jpg::png::gif</code>
+            <span class="help-desc">Browse all images</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="upload-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Manage Documents</h2>
+        <button class="modal-close" id="modal-close" aria-label="Close modal">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Tabs -->
+        <div class="modal-tabs">
+          <button class="modal-tab active" data-tab="vault">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Vault
+          </button>
+          <button class="modal-tab" data-tab="folder">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Index Folder
+          </button>
+          <button class="modal-tab" data-tab="zimzip">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 8v13H3V8"></path>
+              <path d="M1 3h22v5H1z"></path>
+              <path d="M10 12h4"></path>
+            </svg>
+            Index ZIM/ZIP
+          </button>
+        </div>
+
+        <!-- Vault Tab Content -->
+        <div class="tab-content active" id="vault-tab">
+          <!-- State 1: No PIN Set -->
+          <div class="vault-state" id="vault-no-pin">
+            <div class="vault-message">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="1.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <p class="vault-message-title">No vault PIN set</p>
+              <p class="vault-message-text">You can create your PIN in the <a href="/settings" class="vault-link">settings</a></p>
+            </div>
+          </div>
+
+          <!-- State 2: PIN Required (Locked) -->
+          <div class="vault-state" id="vault-locked" style="display: none;">
+            <div class="vault-pin-entry">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="1.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg>
+              <p class="vault-pin-title">Enter your PIN to unlock vault</p>
+              <div class="vault-pin-boxes">
+                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="0">
+                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="1">
+                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="2">
+                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="3">
+              </div>
+              <p class="vault-pin-status" id="vault-pin-status"></p>
+            </div>
+          </div>
+
+          <!-- State 3: Unlocked - Upload Zone -->
+          <div class="vault-state" id="vault-unlocked" style="display: none;">
+            <!-- Hidden File Input -->
+            <input type="file" id="file-input" multiple accept=".pdf,.txt,.docx,.md" style="display: none;">
+            
+            <!-- Upload Zone -->
+            <div class="upload-zone" id="upload-zone" role="button" tabindex="0" aria-label="Upload files by clicking or dragging">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <p>Drag and drop files here, or <span class="browse-link">browse</span></p>
+              <p style="font-size: 0.75rem; margin-top: 8px; color: #6e7681;">Files are encrypted and stored securely</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Index Folder Tab Content -->
+        <div class="tab-content" id="folder-tab">
+          <div class="folder-index-section">
+            <p class="folder-description">Point SearchBox to an existing folder. Files stay in place and are indexed for search (not encrypted).</p>
+            <div class="folder-input-row">
+              <input type="text" id="folder-path-input" class="folder-path-input" placeholder="/home/user/Documents" />
+              <button class="folder-browse-btn" id="folder-browse-btn">Browse</button>
+            </div>
+            <button class="index-folder-btn" id="index-folder-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              Index Folder
+            </button>
+            <div class="index-status" id="index-status"></div>
+          </div>
+
+          <!-- Connected Folders List -->
+          <div class="connected-folders-section">
+            <h4 class="connected-folders-title">Connected Folders</h4>
+            <div class="connected-folders-list" id="connected-folders-list">
+              <div class="no-connected-folders">No folders connected yet</div>
+            </div>
+          </div>
+
+          <!-- Sync Controls -->
+          <div class="sync-section">
+            <button class="sync-folders-btn" id="sync-folders-btn">
+              <!-- Sync Icon (default state) -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sync-icon">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              
+              <!-- Spinner Icon (loading state) -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner-icon">
+                <path d="M21 12a9 9 0 11-6.219-8.56"></path>
+              </svg>
+              
+              <span class="sync-text">Sync Folders</span>
+            </button>
+            <div class="sync-info">
+              <div class="sync-status" id="sync-status"></div>
+              <div class="last-synced" id="last-synced"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ZIM/ZIP Tab Content -->
+        <div class="tab-content" id="zimzip-tab">
+          <div class="folder-index-section">
+            <p class="folder-description">Index a ZIM archive (e.g. Wikipedia offline) or a ZIP file containing documents. Each article or file becomes individually searchable.</p>
+            <div class="folder-input-row">
+              <input type="text" id="archive-path-input" class="folder-path-input" placeholder="/home/user/wikipedia.zim" />
+              <button class="folder-browse-btn" id="archive-browse-btn">Browse</button>
+            </div>
+            <button class="index-folder-btn" id="index-archive-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 8v13H3V8"></path>
+                <path d="M1 3h22v5H1z"></path>
+                <path d="M10 12h4"></path>
+              </svg>
+              Index Archive
+            </button>
+            <div class="index-status" id="archive-index-status"></div>
+          </div>
+
+          <!-- Indexed Archives List -->
+          <div class="connected-folders-section">
+            <h4 class="connected-folders-title">Indexed Archives</h4>
+            <div class="connected-folders-list" id="indexed-archives-list">
+              <div class="no-connected-folders">No archives indexed yet</div>
+            </div>
+          </div>
+
+          <!-- Sync Controls -->
+          <div class="sync-section">
+            <button class="sync-folders-btn" id="sync-archives-btn">
+              <!-- Sync Icon (default state) -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sync-icon">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              
+              <!-- Spinner Icon (loading state) -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner-icon">
+                <path d="M21 12a9 9 0 11-6.219-8.56"></path>
+              </svg>
+              
+              <span class="sync-text">Sync Archives</span>
+            </button>
+            <div class="sync-info">
+              <div class="sync-status" id="archive-sync-status"></div>
+              <div class="last-synced" id="archive-last-synced"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- File List (hidden until vault unlocked) -->
+        <div id="documents-section" style="display: none;">
+        <div class="file-list-header">
+          <h3>Uploaded Documents</h3>
+          <span class="file-count" id="file-count">0 files</span>
+        </div>
+        <div class="file-list" id="file-list">
+          <!-- Empty state shown by default -->
+          <div class="empty-files" id="empty-state">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+              <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+            <p>No documents uploaded yet</p>
+            <p style="font-size: 0.8rem; margin-top: 4px;">Upload files to start searching</p>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Modal -->
+  <div class="modal-overlay" id="notification-modal">
+    <div class="modal notification-modal-content">
+      <div class="modal-header">
+        <h2>Notifications</h2>
+        <button class="modal-close" id="notification-modal-close">&times;</button>
+      </div>
+      <div class="notification-list" id="notification-list">
+        <div class="notification-empty" id="notification-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          <p>No notifications</p>
+        </div>
+      </div>
+      <div class="notification-actions">
+        <button class="clear-notifications-btn" id="clear-notifications-btn">Clear All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vault PIN Modal (for search results) -->
+  <div class="modal-overlay" id="vault-pin-modal" style="display: none;">
+    <div class="modal" style="max-width: 360px;">
+      <div class="modal-header">
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Vault Document
+        </h2>
+        <button class="modal-close" id="vault-pin-modal-close">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p style="color: #8b949e; margin-bottom: 16px; text-align: center;">Enter your PIN to view this protected document</p>
+        <div class="vault-pin-boxes" id="vault-pin-inputs">
+          <input type="password" maxlength="1" class="vault-pin-box" data-index="0" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="vault-pin-box" data-index="1" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="vault-pin-box" data-index="2" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="vault-pin-box" data-index="3" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        <div id="vault-pin-error" style="color: #f85149; text-align: center; font-size: 0.85rem; min-height: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/meilisearch@0.35.0/dist/bundles/meilisearch.umd.min.js"></script>
+  <script>const MEILI_HOST = {{ meili.host|tojson }};const MEILI_API_KEY = {{ meili.api_key|tojson }};</script>
+  <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+{% endblock %}

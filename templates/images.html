@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Image Search - SearchBox{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/images.css') }}">
+{% endblock %}
+
+{% block body %}
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <a href="/" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Back to Search
+      </a>
+      
+      <div class="search-container">
+        <div class="search-box">
+          <input 
+            type="text" 
+            id="search-input" 
+            class="search-input" 
+            placeholder="Search images..."
+            autofocus
+          >
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Results Info -->
+    <div class="results-info" id="results-info" style="display: none;">
+      <div class="results-count">
+        Found <strong id="results-count">0</strong> images
+      </div>
+      <div class="results-meta" id="results-meta">
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading" id="loading" style="display: none;">
+      <div class="loading-spinner"></div>
+      <div>Searching for images...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="empty-state" style="display: none;">
+      <div class="empty-icon">🖼️</div>
+      <div class="empty-title">No images found</div>
+      <div class="empty-description">
+        Try adjusting your search terms or check if your documents contain images.
+      </div>
+    </div>
+
+    <!-- Image Gallery -->
+    <div class="image-gallery" id="image-gallery">
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+    </div>
+  </main>
+
+  <!-- Image Preview Modal -->
+  <div class="image-preview-modal" id="image-preview-modal">
+    <div class="modal-overlay" id="modal-overlay"></div>
+    <div class="modal-content">
+      <button class="modal-close" id="modal-close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18"></path>
+          <path d="M6 6l12 12"></path>
+        </svg>
+      </button>
+      
+      <div class="modal-image-container">
+        <img id="modal-image" src="" alt="">
+      </div>
+      
+      <div class="modal-info">
+        <h3 id="modal-title">Document Name</h3>
+        <div class="modal-meta">
+          <span class="file-type-badge" id="modal-file-type">PDF</span>
+          <span class="image-number" id="modal-image-number">Image 1</span>
+        </div>
+        <p class="modal-description">Click "View Document" to see the full document containing this image.</p>
+        
+        <div class="modal-actions">
+          <button class="btn-primary" id="view-document-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15,3 21,3 21,9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            View Document
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/meilisearch@0.35.0/dist/bundles/meilisearch.umd.min.js"></script>
+  <script>const MEILI_HOST = {{ meili.host|tojson }};const MEILI_API_KEY = {{ meili.api_key|tojson }};</script>
+  <script src="{{ url_for('static', filename='js/images.js') }}"></script>
+{% endblock %}

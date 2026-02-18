@@ -1,0 +1,25 @@
+.git
+.gitignore
+.venv
+.windsurf
+__pycache__
+*.py[oc]
+*.egg-info
+build/
+dist/
+wheels/
+
+# Runtime data (mounted as volumes)
+searchbox.db
+meili_data/
+vault/
+static/thumbnails/
+dumps/
+instance/
+
+# Dev files
+*.migrated
+*.outdated
+test_*.py
+README.md
+CHANGELOG.md

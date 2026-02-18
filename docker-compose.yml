@@ -1,0 +1,27 @@
+services:
+  searchbox:
+    build: .
+    ports:
+      - "5000:5000"
+      - "7700:7700"
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-super-secret-change-me}
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-aSampleMasterKey}
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - searchbox-data:/app/instance
+      - searchbox-vault:/app/vault
+      - searchbox-thumbnails:/app/static/thumbnails
+      - meili-data:/app/meili_data
+      - /home:/home:ro
+      - /mnt:/mnt:ro
+      - /media:/media:ro
+    restart: unless-stopped
+
+volumes:
+  searchbox-data:
+  searchbox-vault:
+  searchbox-thumbnails:
+  meili-data:

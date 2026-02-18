@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}SearchBox{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% block body %}{% endblock %}
+
+  <!-- Shared Auth PIN Modal (available on every page) -->
+  <div class="modal-overlay" id="auth-pin-modal" style="display: none;">
+    <div class="modal" style="max-width: 360px;">
+      <div class="modal-header">
+        <h2>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Authentication Required
+        </h2>
+        <button class="modal-close" id="auth-pin-modal-close">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p style="color: #8b949e; margin-bottom: 16px; text-align: center;">Enter your vault PIN to continue</p>
+        <div class="auth-pin-boxes" id="auth-pin-inputs">
+          <input type="password" maxlength="1" class="auth-pin-box" data-index="0" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="auth-pin-box" data-index="1" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="auth-pin-box" data-index="2" inputmode="numeric" pattern="[0-9]*">
+          <input type="password" maxlength="1" class="auth-pin-box" data-index="3" inputmode="numeric" pattern="[0-9]*">
+        </div>
+        <div id="auth-pin-error" style="color: #f85149; text-align: center; font-size: 0.85rem; min-height: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

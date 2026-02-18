@@ -1,0 +1,639 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - SearchBox{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+
+{% block body %}
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <a href="/" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5"></path>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Back to Search
+      </a>
+      <div class="header-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <h1>Settings</h1>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <div class="settings-container">
+    
+    <!-- Vault Security Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <h2>Vault Security</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          Your vault uses a 4-digit PIN to encrypt and protect your uploaded files. 
+          Only you can access your vault files with this PIN.
+        </p>
+
+        <!-- Vault Status -->
+        <div class="vault-status not-setup" id="vault-status">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span class="vault-status-text"><strong>PIN not set up.</strong> Set a PIN to enable vault encryption.</span>
+        </div>
+
+        <!-- Settings Rows -->
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Set Up PIN</h3>
+            <p>Create a 4-digit PIN to secure your vault</p>
+          </div>
+          <button class="btn btn-primary" id="setup-pin-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14"></path>
+              <path d="M5 12h14"></path>
+            </svg>
+            Set Up PIN
+          </button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Change PIN</h3>
+            <p>Update your vault PIN (requires current PIN)</p>
+          </div>
+          <button class="btn btn-secondary" id="change-pin-btn" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            Change PIN
+          </button>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Reset Vault</h3>
+            <p>Delete all vault files and set a new PIN</p>
+          </div>
+          <button class="btn btn-danger" id="reset-vault-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Reset Vault
+          </button>
+        </div>
+
+        <!-- PIN Entry Container -->
+        <div class="pin-container" id="pin-container">
+          <p class="pin-title" id="pin-title">Enter your PIN</p>
+          <div class="pin-boxes">
+            <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="0">
+            <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="1">
+            <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="2">
+            <input type="password" class="pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="3">
+          </div>
+          <div class="pin-status" id="pin-status"></div>
+          <div class="pin-actions">
+            <button class="btn btn-secondary" id="pin-cancel-btn">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Reset Warning -->
+        <div class="reset-warning" id="reset-warning">
+          <h4>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Warning: This action cannot be undone!
+          </h4>
+          <p>Resetting the vault will permanently delete ALL encrypted files stored in your vault. 
+             Indexed folders will not be affected. Type <strong>RESET</strong> below to confirm.</p>
+          <input type="text" class="reset-confirm-input" id="reset-confirm-input" placeholder="Type RESET to confirm">
+          <div class="reset-actions">
+            <button class="btn btn-secondary" id="reset-cancel-btn">Cancel</button>
+            <button class="btn btn-danger" id="reset-confirm-btn" disabled>Reset Vault</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search Engine Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="M21 21l-4.35-4.35"></path>
+        </svg>
+        <h2>Search Engine</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          SearchBox uses Meilisearch for fast full-text search. Configure and manage your search engine here.
+        </p>
+
+        <!-- Meilisearch Status -->
+        <div class="meili-status" id="meili-status">
+          <div class="meili-status-indicator">
+            <span class="status-dot stopped" id="meili-status-dot"></span>
+            <span class="status-text" id="meili-status-text">Checking...</span>
+          </div>
+          <div class="meili-stats" id="meili-stats"></div>
+        </div>
+
+        <!-- Configuration Fields -->
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Binary Path</h3>
+            <p>Path to Meilisearch executable</p>
+          </div>
+          <input type="text" class="settings-input" id="meili-path" placeholder="/path/to/meilisearch">
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Port</h3>
+            <p>HTTP port for Meilisearch</p>
+          </div>
+          <input type="number" class="settings-input small" id="meili-port" value="7700" min="1" max="65535">
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Auto-start</h3>
+            <p>Start Meilisearch when SearchBox launches</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="meili-autostart" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="meili-actions">
+          <button class="btn btn-primary" id="meili-start-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Start
+          </button>
+          <button class="btn btn-secondary" id="meili-stop-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+            Stop
+          </button>
+          <button class="btn btn-primary" id="meili-save-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span id="save-btn-text">Save Changes</span>
+            <span id="save-changes-indicator" style="display: none; margin-left: 8px; color: #f85149;">*</span>
+          </button>
+          <button class="btn btn-danger" id="meili-clear-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18"></path>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear Index
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Search Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+        </svg>
+        <h2>AI Search</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          Configure AI-powered search capabilities for enhanced document understanding and intelligent query processing.
+        </p>
+        
+        <!-- Settings Rows -->
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Enable AI Search</h3>
+            <p>Activate AI-powered search features for enhanced results and natural language queries</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="ai-search-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Ollama Settings (shown when AI Search is enabled) -->
+        <div id="ollama-settings" style="display: none;">
+          <div class="settings-subsection">
+            <div class="subsection-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"></path>
+              </svg>
+              <h4>Ollama Configuration</h4>
+            </div>
+            
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Server URL</h3>
+                <p>Ollama server endpoint (default: http://localhost:11434)</p>
+              </div>
+              <input type="text" class="settings-input" id="ollama-url" placeholder="http://localhost:11434">
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Model</h3>
+                <p>AI model to use for search enhancements (e.g., llama2, mistral, codellama)</p>
+              </div>
+              <input type="text" class="settings-input" id="ollama-model" placeholder="llama2">
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Timeout (seconds)</h3>
+                <p>Maximum time to wait for Ollama response</p>
+              </div>
+              <input type="number" class="settings-input small" id="ollama-timeout" value="30" min="5" max="300">
+            </div>
+
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Auto-connect</h3>
+                <p>Automatically connect to Ollama when AI Search is enabled</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="ollama-autoconnect">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Ollama Status -->
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Connection Status</h3>
+                <p id="ollama-status-text">Checking Ollama server...</p>
+              </div>
+              <div class="status-indicator">
+                <span id="ollama-status-dot" class="status-dot checking"></span>
+                <button id="test-ollama-btn" class="btn btn-secondary btn-small">
+                  Test Connection
+                </button>
+              </div>
+            </div>
+
+            <!-- Available Models -->
+            <div class="settings-row">
+              <div class="settings-info">
+                <h3>Available Models</h3>
+                <p id="ollama-models-text">Loading models...</p>
+              </div>
+              <button id="refresh-models-btn" class="btn btn-secondary btn-small">
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Indexed Folders Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <h2>Indexed Folders</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          Folders you've indexed for search. Files in these folders are searchable but not encrypted - 
+          they remain in their original location.
+        </p>
+
+        <div class="sync-controls">
+          <button class="btn btn-primary" id="sync-folders-btn">
+            <!-- Sync Icon (default state) -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sync-icon">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            
+            <!-- Spinner Icon (loading state) -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner-icon">
+              <path d="M21 12a9 9 0 11-6.219-8.56"></path>
+            </svg>
+            
+            <span class="sync-text">Sync Folders</span>
+          </button>
+          <div class="sync-info">
+            <div class="sync-status" id="sync-status"></div>
+            <div class="last-synced" id="last-synced"></div>
+          </div>
+        </div>
+
+        <div class="folders-list" id="folders-list">
+          <div class="no-folders">No folders indexed yet. Add folders from the main page.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- qBittorrent Integration Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <h2>qBittorrent</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          Connect to qBittorrent to auto-index downloaded documents. Completed torrents with 
+          supported file types (PDF, DOCX, TXT, etc.) will become searchable alongside your other files.
+          <br><em>Requires qBittorrent Web UI to be enabled (Tools → Options → Web UI).</em>
+        </p>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Enable Integration</h3>
+            <p>Connect SearchBox to your qBittorrent instance</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="qbt-enabled">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="qbt-settings" style="display: none;">
+          <div class="settings-row">
+            <div class="settings-info">
+              <h3>Host</h3>
+              <p>qBittorrent Web UI address</p>
+            </div>
+            <input type="text" class="settings-input" id="qbt-host" placeholder="http://localhost">
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-info">
+              <h3>Port</h3>
+              <p>Web UI port (default: 8080)</p>
+            </div>
+            <input type="number" class="settings-input small" id="qbt-port" value="8080" min="1" max="65535">
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-info">
+              <h3>Username</h3>
+              <p>Web UI login username</p>
+            </div>
+            <input type="text" class="settings-input" id="qbt-username" placeholder="admin">
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-info">
+              <h3>Password</h3>
+              <p>Web UI login password</p>
+            </div>
+            <input type="password" class="settings-input" id="qbt-password" placeholder="Password">
+          </div>
+
+          <!-- Connection Status -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <h3>Connection Status</h3>
+              <p id="qbt-status-text">Not connected</p>
+            </div>
+            <div class="status-indicator">
+              <span id="qbt-status-dot" class="status-dot stopped"></span>
+              <button id="qbt-test-btn" class="btn btn-secondary btn-small">Test Connection</button>
+            </div>
+          </div>
+
+          <!-- Transfer Stats (shown when connected) -->
+          <div class="qbt-stats" id="qbt-stats" style="display: none;">
+            <div class="qbt-stats-row">
+              <span class="qbt-stat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2">
+                  <polyline points="7 14 12 9 17 14"></polyline>
+                  <line x1="12" y1="9" x2="12" y2="21"></line>
+                </svg>
+                <span id="qbt-dl-speed">0 B/s</span>
+              </span>
+              <span class="qbt-stat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
+                  <polyline points="17 10 12 15 7 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span id="qbt-up-speed">0 B/s</span>
+              </span>
+              <span class="qbt-stat" id="qbt-counts"></span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="qbt-actions">
+            <button class="btn btn-primary" id="qbt-sync-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="sync-icon">
+                <path d="M23 4v6h-6"></path>
+                <path d="M1 20v-6h6"></path>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinner-icon">
+                <path d="M21 12a9 9 0 11-6.219-8.56"></path>
+              </svg>
+              <span class="sync-text">Sync Downloads</span>
+            </button>
+            <button class="btn btn-primary" id="qbt-save-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              Save Settings
+            </button>
+          </div>
+
+          <!-- Indexed Torrents List -->
+          <div class="qbt-indexed-list" id="qbt-indexed-list">
+            <h4>Indexed Torrents</h4>
+            <div id="qbt-indexed-items" class="qbt-indexed-items">
+              <p class="no-items">No torrents indexed yet. Click "Sync Downloads" to index completed torrents.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Search History Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+          <path d="M12 7v5l3 3"></path>
+        </svg>
+        <h2>Search History</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          Manage your search history and AI enhancement preferences for personalized recommendations.
+        </p>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>AI Enhancement</h3>
+            <p>Use your recent searches to generate more relevant AI recommendations</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="ai-history-enhancement" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Recent Searches</h3>
+            <p>Your last 5 searches used for AI enhancement</p>
+          </div>
+          <button id="clear-search-history" class="btn btn-secondary">Clear History</button>
+        </div>
+
+        <!-- Search History Display -->
+        <div class="search-history-display" id="recent-searches-list">
+          <p class="search-history-empty">Loading search history...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Factory Reset Section -->
+    <section class="settings-section factory-reset-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2">
+          <path d="M3 6h18"></path>
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+        <h2>Factory Reset</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description" style="color: #f85149;">
+          This will permanently delete all data and restore SearchBox to its default state. 
+          All indexed documents, vault files, thumbnails, settings, and search history will be erased. 
+          This action cannot be undone.
+        </p>
+        <button id="factory-reset-btn" class="btn btn-danger">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+          Factory Reset
+        </button>
+      </div>
+    </section>
+
+    <!-- Factory Reset Confirmation Modal -->
+    <div class="modal-overlay" id="factory-reset-modal" style="display:none;">
+      <div class="factory-reset-modal">
+        <div class="factory-reset-modal-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="1.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <h3>Are you sure?</h3>
+        <p>This will permanently erase <strong>everything</strong>:</p>
+        <ul class="factory-reset-list">
+          <li>All indexed documents &amp; search data</li>
+          <li>Vault files &amp; encryption keys</li>
+          <li>Thumbnails &amp; image cache</li>
+          <li>Settings, search history &amp; preferences</li>
+          <li>Connected folders, archives &amp; torrents</li>
+        </ul>
+        <p class="factory-reset-confirm-text">Type <strong>RESET</strong> to confirm:</p>
+        <input type="text" id="factory-reset-confirm-input" class="settings-input" placeholder="Type RESET" autocomplete="off">
+        <div class="factory-reset-actions">
+          <button id="factory-reset-cancel" class="btn btn-secondary">Cancel</button>
+          <button id="factory-reset-confirm" class="btn btn-danger" disabled>Erase Everything</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Section -->
+    <section class="settings-section">
+      <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <h2>About SearchBox</h2>
+      </div>
+      <div class="section-content">
+        <p class="section-description">
+          SearchBox is a local document search engine with encrypted vault storage. 
+          Your files never leave your computer.
+        </p>
+        <div class="about-grid">
+          <div class="about-item">
+            <span class="about-label">Version</span>
+            <span class="about-value">v0.1.0</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">Encryption</span>
+            <span class="about-value">AES-256-GCM</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">Search Engine</span>
+            <span class="about-value">Meilisearch</span>
+          </div>
+          <div class="about-item">
+            <span class="about-label">License</span>
+            <span class="about-value">Open Source</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="settings-footer">
+    <p>© 2026 <a href="https://www.sourceboxai.com/" target="_blank">SourceBox LLC</a> • Open Source • Self-Hosted • Private</p>
+  </footer>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

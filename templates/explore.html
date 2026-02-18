@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Explore - SearchBox{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/explore.css') }}">
+{% endblock %}
+
+{% block body %}
+  <!-- Header -->
+  <header class="explore-header">
+    <div class="header-content">
+      <a href="/" class="back-link">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Back to Search
+      </a>
+
+      <h1 class="explore-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        Explore
+      </h1>
+
+      <div class="header-right">
+        <span class="doc-count" id="doc-count"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toolbar: Filters + Sort -->
+  <div class="explore-toolbar">
+    <div class="toolbar-content">
+      <div class="filter-pills" id="filter-pills">
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill" data-filter="pdf">PDF</button>
+        <button class="filter-pill" data-filter="docx">DOCX</button>
+        <button class="filter-pill" data-filter="txt">TXT</button>
+        <button class="filter-pill" data-filter="md">MD</button>
+        <button class="filter-pill" data-filter="image">Images</button>
+      </div>
+
+      <div class="sort-controls">
+        <label class="sort-label" for="sort-select">Sort:</label>
+        <select class="sort-select" id="sort-select">
+          <option value="recent">Recent</option>
+          <option value="name">Name A-Z</option>
+          <option value="size">Size</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="explore-main">
+    <!-- Loading State -->
+    <div class="explore-loading" id="explore-loading" style="display: none;">
+      <div class="loading-spinner"></div>
+      <div>Loading documents...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="explore-empty" id="explore-empty" style="display: none;">
+      <div class="empty-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#30363d" stroke-width="1.5">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+      </div>
+      <h2 class="empty-title">No documents yet</h2>
+      <p class="empty-description">Upload files or index a folder to start exploring your documents.</p>
+      <a href="/" class="empty-action">Go to Search</a>
+    </div>
+
+    <!-- Document Grid -->
+    <div class="explore-grid" id="explore-grid"></div>
+
+    <!-- Scroll Loading Indicator -->
+    <div class="scroll-loading" id="scroll-loading" style="display: none;">
+      <div class="loading-spinner"></div>
+    </div>
+  </main>
+{% endblock %}
+
+{% block scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/meilisearch@0.35.0/dist/bundles/meilisearch.umd.min.js"></script>
+  <script>const MEILI_HOST = {{ meili.host|tojson }};const MEILI_API_KEY = {{ meili.api_key|tojson }};</script>
+  <script src="{{ url_for('static', filename='js/explore.js') }}"></script>
+{% endblock %}

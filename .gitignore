@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environment
+.venv/
+
+# Database
+searchbox.db
+instance/
+
+# Meilisearch data
+meili_data/
+
+# Vault storage
+vault/
+
+# Generated thumbnails
+static/thumbnails/
+
+# Migration leftovers (safe to delete)
+*.migrated
+*.outdated
+
+# IDE
+.windsurf/
