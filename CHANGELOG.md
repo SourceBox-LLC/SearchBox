@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.3.0 — 2026-02-18
+
+### Parallel ZIM extraction
+
+- **Multithreaded C++ extractor** — ZIM processing now uses a producer-consumer thread pool. The main thread iterates ZIM entries and feeds a bounded work queue; N worker threads (`hardware_concurrency() - 2`, minimum 2) handle HTML parsing, image resolution, and thumbnail generation in parallel. Expected 3–6x speedup depending on core count.
+- **Thread-safe architecture** — `BoundedQueue<T>` template class for work distribution, `std::atomic<int>` counters, mutex-protected image dedup map and stdout JSONL output. All worker-called functions (libzim reads, gumbo_parse, stb_image, librsvg/cairo) verified thread-safe.
+
+### SVG rasterization
+
+- **SVG thumbnail rendering** — SVG images are now rasterized to JPEG thumbnails via `librsvg` and `cairo` instead of being skipped. Renders at 4 sizes (100, 150, 300, 800px).
+- **Icon filtering** — SVGs with dimensions ≤ 64px are rejected as UI icons. Filename-based filtering skips paths containing "icon", "logo", "button", "arrow", "chevron", "badge", or "favicon".
+- **New dependencies** — `librsvg2-dev` and `libcairo2-dev` (build stage), `librsvg2-2`, `libcairo2`, `libcairo-gobject2` (runtime stage).
+
+### Image deduplication
+
+- **Cross-article dedup** — tracks image usage count across articles. Two-pass candidate selection: first pass skips images used ≥ 3 times (banners/logos), second pass falls back to any working candidate.
+- **Result** — diverse, article-specific thumbnails instead of the same site banner on every article.
+
+### Adaptive resource monitor improvements
+
+- **Max batch size increased** — `BATCH_MAX` raised from 200 to 400 for Meilisearch writes. The adaptive monitor still scales down under memory pressure.
+
+### Documentation
+
+- **README overhaul** — new centered header with badge, expanded features list, ZIM architecture section with performance estimates, encryption details table, security table, C++ library reference, adaptive monitor behavior table, CLI usage for all three modes, updated project structure with `resource_monitor.py` and `stb/`.
+- **CHANGELOG** — added 2.3.0 entries for all changes since 2.2.0.
+
+---
+
 ## 2.2.0 — 2026-02-12
 
 ### C++ extraction engine

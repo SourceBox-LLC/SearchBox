@@ -1,6 +1,6 @@
 [project]
 name = "searchbox"
-version = "2.2.0"
+version = "2.3.0"
 description = "Local document search engine with full-text search, image search, encrypted vault, and optional AI summaries"
 readme = "README.md"
 requires-python = ">=3.10"

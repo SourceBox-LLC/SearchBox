@@ -1,57 +1,69 @@
+<div align="center">
+
 # SearchBox
 
-A local document search engine. Index your files, search them instantly, and keep sensitive documents in an encrypted vault. Everything runs on your machine — nothing leaves your computer.
+**A self-hosted, local-first document search engine.**
 
-Built with Flask, Meilisearch, a C++ document extraction engine, and an optional Ollama integration for AI-powered summaries. Runs in a single Docker container.
+Index your files, search them instantly, browse visual thumbnails, and keep sensitive documents in an encrypted vault. Everything runs on your machine — nothing leaves your computer.
+
+Built with Flask, Meilisearch, a multithreaded C++ extraction engine, and optional Ollama AI integration. Ships as a single Docker container.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+</div>
 
 ---
 
-## What it does
+## Features
 
-- **Full-text search** across PDFs, Word docs, Excel spreadsheets, HTML, text files, and Markdown
-- **C++ extraction engine** — fast native text and image extraction via MuPDF, replacing Python libraries
+- **Full-text search** — PDFs, Word docs, Excel, HTML, text files, Markdown, and images
+- **C++ extraction engine** — native text and image extraction via MuPDF with multithreaded ZIM processing
+- **ZIM archive indexing** — index Wikipedia and other ZIM archives (16M+ articles) with parallel thumbnail generation, SVG rasterization, image deduplication, and adaptive resource management
 - **Image search** — find images embedded in your documents
-- **Explore** — visual masonry grid to browse all indexed documents
-- **ZIM/ZIP indexing** — index Wikipedia dumps and other ZIM/ZIP archives
-- **Vault** — AES-256-GCM encrypted storage with PIN protection
-- **Folder indexing** — point it at a folder and everything inside becomes searchable, with background processing and progress reporting
-- **qBittorrent integration** — index completed downloads directly from your torrent client
-- **AI summaries** — optional Ollama integration for search result summaries and recommendations
-- **Session auth & CSRF** — session-based PIN authentication with CSRF protection
-- **Dark theme UI** with a responsive layout
+- **Explore** — masonry grid to visually browse all indexed documents
+- **Encrypted vault** — AES-256-GCM storage with PIN protection (PBKDF2, 600k iterations)
+- **Folder indexing** — background processing with real-time progress reporting
+- **qBittorrent integration** — index completed downloads from your torrent client
+- **AI summaries** — optional Ollama integration for streaming search result summaries
+- **Security** — session auth, CSRF protection, rate limiting, input validation
+- **Dark theme UI** — responsive layout across all pages
 
 ---
 
-## Quick start
+## Quick Start
 
 ### Prerequisites
 
 - **[Docker](https://docs.docker.com/get-docker/)** and **Docker Compose**
 - **[Ollama](https://ollama.com)** (optional, for AI summaries)
 
-### Run with Docker (recommended)
+### Run with Docker
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/SourceBox-LLC/SearchBox.git
 cd SearchBox
 docker compose up -d
 ```
 
 Open **http://localhost:5000** in your browser.
 
-The container bundles Meilisearch, the C++ extraction binary, and all Python dependencies. Your home directory, `/mnt`, and `/media` are mounted read-only so SearchBox can index files from anywhere on your system.
+The container bundles Meilisearch, the compiled C++ extractor, and all Python dependencies. Your home directory, `/mnt`, and `/media` are mounted read-only so SearchBox can index files from anywhere on your system.
 
-### Environment variables
+### Environment Variables
 
 Set these in `docker-compose.yml` or a `.env` file:
 
 | Variable | Default | Description |
 |---|---|---|
-| `FLASK_SECRET_KEY` | `super-secret-change-me` | Flask session secret |
+| `FLASK_SECRET_KEY` | auto-generated | Flask session secret |
 | `MEILI_MASTER_KEY` | `aSampleMasterKey` | Meilisearch authentication key |
+| `MEILI_PORT` | `7700` | Meilisearch port |
 | `OLLAMA_URL` | `http://host.docker.internal:11434` | Ollama API URL |
+| `SEARCHBOX_HOST` | `0.0.0.0` | Flask bind address |
+| `SEARCHBOX_PORT` | `5000` | Flask port |
+| `SEARCHBOX_DB_DIR` | `/app/instance` | SQLite database directory |
 
-### Local development (without Docker)
+### Local Development (without Docker)
 
 Requires Python 3.10+, [uv](https://docs.astral.sh/uv/), a Meilisearch binary, and optionally the compiled `doc_extractor` binary on your PATH.
 
@@ -62,7 +74,7 @@ uv run python app.py
 
 > **Note:** Without the C++ `doc_extractor` binary, text and image extraction for PDF, DOCX, XLSX, and HTML files will not work. The binary must be compiled from `extractor/` and placed on your PATH. TXT, MD, and image files work without it.
 
-### First-time setup
+### First-Time Setup
 
 1. Open **http://localhost:5000**
 2. Go to the **Index Folder** tab
@@ -71,7 +83,7 @@ uv run python app.py
 
 ---
 
-## Search syntax
+## Search Syntax
 
 SearchBox supports a query language for filtering results by file type and combining conditions.
 
@@ -85,7 +97,7 @@ SearchBox supports a query language for filtering results by file type and combi
 | `*::pdf` | Browse all PDFs in the index |
 | `"exact phrase"::md` | Exact phrase match in Markdown files |
 
-### Boolean operators
+### Boolean Operators
 
 | Operator | Meaning | Example |
 |---|---|---|
@@ -93,7 +105,7 @@ SearchBox supports a query language for filtering results by file type and combi
 | `::||` | OR | `research::pdf::|| notes::docx` — either match |
 | `::!` | NOT | `report::pdf::! draft::tmp` — reports, excluding drafts |
 
-### Image search
+### Image Search
 
 Append `::image` to any query to search for images inside matching documents:
 
@@ -102,6 +114,43 @@ machine learning::image
 ```
 
 You can also click the **Search Images** button, or use the dedicated gallery at `/images`.
+
+### Validation Feedback
+
+The search bar border changes color as you type:
+- **Green** — valid syntax, ready to search
+- **Orange** — incomplete (e.g. operator without a second term)
+- **Red** — syntax error
+
+---
+
+## ZIM Archive Indexing
+
+SearchBox can index ZIM archives (the offline format used by Wikipedia, Stack Exchange, and other projects). Designed to handle archives with millions of articles.
+
+### How It Works
+
+1. The **C++ extractor** iterates all HTML articles in the ZIM archive using `libzim`
+2. For each article, it extracts plain text (via Gumbo HTML parser) and generates multi-size JPEG thumbnails
+3. **Parallel processing** — a thread pool (auto-detected from CPU cores) processes articles concurrently using a producer-consumer model
+4. The **Python layer** reads JSONL output line-by-line and writes to Meilisearch in adaptive batches
+
+### Performance Features
+
+- **Multithreaded extraction** — `hardware_concurrency() - 2` worker threads (minimum 2) for parallel HTML parsing, image resolution, and thumbnail generation
+- **SVG rasterization** — SVG images rendered to JPEG thumbnails via `librsvg` and `cairo`, with icon filtering (skips UI icons < 64px)
+- **Image deduplication** — tracks image usage across articles to avoid repeated banners/logos dominating thumbnails
+- **Adaptive resource monitor** — reads `/proc/meminfo` every 50 articles to dynamically adjust batch sizes (10–400), defer image processing under memory pressure, and apply backpressure sleep during high load
+- **Bounded work queue** — prevents memory explosion on large archives by limiting in-flight work items
+
+### Estimated Performance
+
+| CPU Cores | Worker Threads | Est. Speedup |
+|-----------|---------------|-------------|
+| 4 | 2 | ~1.8x |
+| 8 | 6 | ~4x |
+| 12 | 10 | ~5.5x |
+| 16 | 14 | ~6x |
 
 ---
 
@@ -116,24 +165,18 @@ The Explore page (`/explore`) provides a visual, browsable grid of all indexed d
 - **Source badges** — folder, vault, or qBittorrent origin
 - Click any card to open the document viewer
 
-### Validation feedback
-
-The search bar border changes color as you type:
-- **Green** — valid syntax, ready to search
-- **Orange** — incomplete (e.g. operator without a second term)
-- **Red** — syntax error
-
 ---
 
-## Supported file types
+## Supported File Types
 
-| Type | Extensions | Extraction |
+| Type | Extensions | Extraction Method |
 |---|---|---|
-| Documents | `.pdf`, `.docx`, `.doc`, `.xlsx` | C++ (MuPDF / libzip) |
-| Web | `.html`, `.htm` | C++ |
+| Documents | `.pdf`, `.docx`, `.doc`, `.xlsx` | C++ (MuPDF / libzip / pugixml) |
+| Web | `.html`, `.htm` | C++ (Gumbo) |
 | Text | `.txt`, `.md` | Native Python read |
 | Images | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`, `.bmp` | Indexed as metadata |
-| Archives | `.zim`, `.zip` | Python (libzim / zipfile) |
+| Archives | `.zim` | C++ (libzim) with parallel processing |
+| Archives | `.zip` | Python (zipfile) |
 
 ---
 
@@ -145,17 +188,21 @@ The vault provides AES-256-GCM encrypted storage for sensitive documents.
 2. **Upload to vault** — use the upload dialog's "Vault" tab
 3. **Access vault files** — click the lock icon on a search result, then enter your PIN
 
-**How it works:**
-- PIN → PBKDF2-HMAC-SHA256 (600k iterations) → Key Encryption Key (KEK)
-- Each file gets a unique random Data Encryption Key (DEK), wrapped by the KEK
+### Encryption Details
+
+| Layer | Algorithm | Detail |
+|---|---|---|
+| PIN → KEK | PBKDF2-HMAC-SHA256 | 600,000 iterations, 16-byte random salt |
+| KEK → DEK | AES-256-GCM | Per-file random 32-byte Data Encryption Key |
+| DEK → File | AES-256-GCM | 12-byte nonce + ciphertext + 16-byte auth tag |
+
 - Files on disk: `vault/{id}_{filename}.enc`
 - Temp decrypted files auto-deleted after 30 seconds
-
-Vault files are stored locally in the `vault/` directory. The PIN can be changed or reset from Settings.
+- PIN can be changed or reset from Settings
 
 ---
 
-## qBittorrent integration
+## qBittorrent Integration
 
 Index completed downloads from a local qBittorrent instance.
 
@@ -170,19 +217,22 @@ Indexed torrents appear in search results with an orange download icon and "qBit
 
 ## Security
 
-- **Session auth** — PIN verified once per session (30-minute timeout), stored server-side
-- **CSRF protection** — all state-changing requests require a CSRF token
-- **Rate limiting** — 5 PIN attempts per IP, 5-minute lockout
-- **Input validation** — `secure_filename()` on uploads, Meilisearch filter injection prevention, SSRF guards on Ollama URL
-- **No external requests** — everything runs locally, nothing leaves your machine
+| Feature | Implementation |
+|---|---|
+| **Session auth** | PIN verified once per session, 30-minute timeout, server-side storage |
+| **CSRF protection** | Flask-WTF CSRF tokens on all state-changing requests |
+| **Rate limiting** | 5 PIN attempts per IP, 5-minute lockout |
+| **Input validation** | `secure_filename()` on uploads, Meilisearch filter injection prevention |
+| **SSRF guards** | Ollama URL validation |
+| **No external requests** | Everything runs locally — nothing leaves your machine |
 
 ---
 
-## AI search (optional)
+## AI Search (Optional)
 
 If you have [Ollama](https://ollama.com) running locally, SearchBox can generate AI-powered summaries of your search results.
 
-1. Install Ollama and pull a model (e.g. `ollama pull llama2`)
+1. Install Ollama and pull a model (e.g. `ollama pull gemma3:12b`)
 2. In Settings → AI Search, enable it and set the Ollama URL (default: `http://localhost:11434`)
 3. Choose a model — SearchBox will stream a summary alongside your results
 
@@ -192,93 +242,128 @@ This is entirely optional. SearchBox works fine without it.
 
 ## Architecture
 
-### C++ extraction engine
+### C++ Extraction Engine
 
-SearchBox uses a custom C++ binary (`doc_extractor`) built with MuPDF for fast document processing. The binary supports two modes:
+SearchBox uses a custom C++ binary (`doc_extractor`) for fast document processing. Built with:
 
-- **Single file** — `doc_extractor <file> --text` or `doc_extractor <file> --images <out_dir>`
-- **Batch directory** — `doc_extractor --batch <dir> --out <image_out_dir>`
+| Library | Purpose |
+|---|---|
+| MuPDF | PDF text and image extraction |
+| libzip | DOCX/XLSX (Open XML) decompression |
+| pugixml | XML parsing for DOCX/XLSX content |
+| Gumbo | HTML parsing and text extraction |
+| libzim | ZIM archive reading |
+| librsvg + cairo | SVG rasterization to JPEG |
+| stb_image | Image decoding (JPEG, PNG, GIF, WebP, BMP) |
+| stb_image_resize2 | Thumbnail resizing |
+| stb_image_write | JPEG thumbnail output |
 
-Output is JSON (single file) or JSONL (batch) on stdout. The Python app calls it via subprocess and parses the results. If the binary is not available, extraction fails for document formats (PDF, DOCX, XLSX, HTML). Simple formats (TXT, MD) are read natively in Python.
+The binary supports three modes:
 
-### Docker container
+```bash
+# Single file
+doc_extractor <file> --text
+doc_extractor <file> --images <out_dir>
+doc_extractor <file> --all <out_dir>
 
-The Dockerfile uses a multi-stage build:
+# Batch directory
+doc_extractor --batch <dir> --out <image_out_dir>
+doc_extractor --batch <dir> --text-only
 
-1. **Stage 1** (`debian:bookworm`) — compiles the C++ extractor with CMake
+# ZIM archive (parallel)
+doc_extractor --zim <path>
+doc_extractor --zim <path> --extract-images <dir>
+doc_extractor --zim <path> --limit <N>
+```
+
+Output is JSON (single file) or JSONL (batch/ZIM) on stdout. Logs go to stderr. If the binary is not available, extraction fails for document formats (PDF, DOCX, XLSX, HTML). Simple formats (TXT, MD) are read natively in Python.
+
+### Docker Container
+
+Multi-stage build:
+
+1. **Stage 1** (`debian:bookworm`) — compiles the C++ extractor with CMake, linking MuPDF, libzim, librsvg, cairo, Gumbo, and all dependencies
 2. **Stage 2** (`python3.10-bookworm-slim`) — runtime image with Meilisearch, Python deps, and the compiled binary
 
-Both stages use Debian Bookworm to ensure glibc compatibility. The entrypoint starts Meilisearch, waits for it to be healthy, then starts the Flask app.
+Both stages use Debian Bookworm for glibc compatibility. The entrypoint starts Meilisearch, waits for its health check, then starts the Flask app.
 
-### Background indexing
+### Adaptive Resource Monitor
 
-Folder indexing runs in a background thread with progress tracking. The frontend polls `/api/folder/index/status` for real-time updates. Documents are batched (100 per batch) for efficient Meilisearch writes.
+The `AdaptiveMonitor` reads `/proc/meminfo` and `/proc/self/status` to dynamically tune indexing behavior:
 
-## Project structure
+| Memory Usage | Batch Size | Image Processing | Backpressure |
+|---|---|---|---|
+| < 50% | Scale up (→ 400) | Normal | None |
+| 50–65% | Default (50) | Normal | None |
+| 65–80% | Scale down | Normal | None |
+| 80–90% | Minimum (10) | Deferred | None |
+| > 90% | Minimum (10) | Deferred | 2s cooldown sleep |
+
+Deferred images are queued and processed later when memory recovers below 50%.
+
+## Project Structure
 
 ```
 SearchBox/
-├── app.py                  # Application factory and entrypoint
-├── config.py               # Constants (paths, allowed extensions)
-├── models.py               # SQLAlchemy models (Settings, IndexedFolder, VaultConfig)
-├── Dockerfile              # Multi-stage build (C++ compiler + Python runtime)
-├── docker-compose.yml      # Container config with volume mounts
-├── entrypoint.sh           # Starts Meilisearch + Flask app
+├── app.py                     # Flask application factory and entrypoint
+├── config.py                  # Constants (paths, allowed extensions)
+├── models.py                  # SQLAlchemy models (Settings, IndexedFolder, VaultConfig)
+├── Dockerfile                 # Multi-stage build (C++ compiler → Python runtime)
+├── docker-compose.yml         # Container config with volume mounts
+├── entrypoint.sh              # Starts Meilisearch → Flask
+├── pyproject.toml             # Python dependencies (uv)
 │
-├── extractor/              # C++ document extraction engine
-│   ├── CMakeLists.txt      #   CMake build config
+├── extractor/                 # C++ document extraction engine
+│   ├── CMakeLists.txt         #   Build config (MuPDF, libzim, librsvg, cairo, Gumbo)
 │   └── src/
-│       └── main.cpp        #   MuPDF-based text/image extractor CLI
+│       ├── main.cpp           #   Extractor CLI with parallel ZIM processing
+│       └── stb/               #   stb single-header image libraries
 │
-├── routes/                 # Flask Blueprints
-│   ├── pages.py            #   Page routes (/, /settings, /view, /images, /explore)
-│   ├── documents.py        #   Document CRUD, upload, thumbnails, file serving
-│   ├── folders.py          #   Folder indexing (background), sync, removal, progress
-│   ├── zim.py              #   ZIM/ZIP archive indexing
-│   ├── meilisearch_routes.py  # Meilisearch start/stop/status/config
-│   ├── settings.py         #   App settings API
-│   ├── vault.py            #   Vault PIN setup/verify/change/reset/lock/session
-│   ├── ollama.py           #   Ollama status, models, AI summaries
-│   └── qbittorrent.py      #   qBittorrent config, sync, indexed torrents
+├── routes/                    # Flask Blueprints
+│   ├── pages.py               #   Page routes (/, /settings, /view, /images, /explore)
+│   ├── documents.py           #   Document CRUD, upload, thumbnails, file serving
+│   ├── folders.py             #   Folder indexing (background), sync, removal
+│   ├── zim.py                 #   ZIM/ZIP archive indexing with progress tracking
+│   ├── meilisearch_routes.py  #   Meilisearch start/stop/status/config
+│   ├── settings.py            #   App settings API
+│   ├── vault.py               #   Vault PIN setup/verify/change/reset/lock
+│   ├── ollama.py              #   Ollama status, models, AI summaries
+│   └── qbittorrent.py         #   qBittorrent config, sync, indexed torrents
 │
-├── services/               # Business logic
-│   ├── config_service.py   #   Read/write app config from SQLite
-│   ├── meilisearch_service.py # Meilisearch process management and client
-│   ├── document_service.py #   C++ extractor integration, file validation
-│   ├── zim_service.py      #   ZIM/ZIP archive parsing and indexing
-│   ├── vault_service.py    #   PIN hashing, vault config
-│   └── qbittorrent_service.py # qBittorrent Web API client
+├── services/                  # Business logic
+│   ├── config_service.py      #   Read/write app config from SQLite
+│   ├── meilisearch_service.py #   Meilisearch process management and client
+│   ├── document_service.py    #   C++ extractor integration, file validation
+│   ├── zim_service.py         #   ZIM/ZIP indexing with adaptive batching
+│   ├── vault_service.py       #   PIN hashing, vault config
+│   └── qbittorrent_service.py #   qBittorrent Web API client
 │
-├── utils/                  # Helpers
-│   ├── auth.py             #   @require_pin decorator, session validation
-│   ├── crypto.py           #   AES-256-GCM encryption for vault
-│   ├── ollama_client.py    #   Ollama HTTP client
-│   ├── ollama_helper.py    #   Model recommendations, connection testing
-│   ├── rag_helper.py       #   RAG pipeline for AI summaries
-│   └── image_extractor.py  #   Thumbnail generation from C++ extracted images
+├── utils/                     # Helpers
+│   ├── auth.py                #   @require_pin decorator, session validation
+│   ├── crypto.py              #   AES-256-GCM envelope encryption
+│   ├── resource_monitor.py    #   Adaptive batch sizing via /proc
+│   ├── image_extractor.py     #   Thumbnail generation from C++ images
+│   ├── ollama_client.py       #   Ollama HTTP client
+│   ├── ollama_helper.py       #   Model recommendations, connection testing
+│   └── rag_helper.py          #   RAG pipeline for AI summaries
 │
-├── templates/              # Jinja2 (extends base.html)
-│   ├── base.html           #   Shared layout, fonts, PIN modal, base styles
-│   ├── index.html          #   Main search page
-│   ├── settings.html       #   Settings panel
-│   ├── view.html           #   Document viewer
-│   ├── images.html         #   Image search gallery
-│   └── explore.html        #   Visual document browser
+├── templates/                 # Jinja2 (extends base.html)
+│   ├── base.html              #   Shared layout, fonts, PIN modal
+│   ├── index.html             #   Main search page
+│   ├── settings.html          #   Settings panel
+│   ├── view.html              #   Document viewer
+│   ├── images.html            #   Image search gallery
+│   └── explore.html           #   Visual document browser
 │
-├── static/
-│   ├── css/                #   base.css, index.css, settings.css, view.css, images.css, explore.css
-│   ├── js/                 #   base.js, index.js, settings.js, view.js, images.js, explore.js
-│   └── thumbnails/         #   Generated document thumbnails
-│
-├── vault/                  # Encrypted vault storage
-├── meili_data/             # Meilisearch database files (Docker volume)
-├── pyproject.toml          # Python dependencies
-└── uv.lock                 # Locked dependency versions
+└── static/
+    ├── css/                   #   Per-page stylesheets
+    ├── js/                    #   Per-page JavaScript
+    └── thumbnails/            #   Generated document thumbnails (gitignored)
 ```
 
 ---
 
-## API reference
+## API Reference
 
 ### Pages
 
