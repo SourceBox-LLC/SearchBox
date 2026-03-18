@@ -26,7 +26,7 @@ import shutil
 import logging
 
 from flask import Blueprint, request, jsonify, current_app, session
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 from config import BASE_DIR, VAULT_FOLDER
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,11 @@ logger = logging.getLogger(__name__)
 settings_bp = Blueprint("settings", __name__)
 
 MAX_HISTORY_SIZE = 5
+
+
+def _get_org_id():
+    """Get current organization ID for scoping settings."""
+    return get_current_organization_id()
 
 
 def _settings():
@@ -51,7 +56,8 @@ def _bookmark():
 @api_login_required
 def get_search_history():
     """Return the stored search history list."""
-    history = _settings().get_json("search_history", [])
+    org_id = _get_org_id()
+    history = _settings().get_json("search_history", [], organization_id=org_id)
     return jsonify({"history": history})
 
 
@@ -59,21 +65,22 @@ def get_search_history():
 @api_login_required
 def add_search_history():
     """Add a query to search history (deduped, capped at MAX_HISTORY_SIZE)."""
+    org_id = _get_org_id()
     data = request.get_json()
     query = (data.get("query") or "").strip() if data else ""
     if not query:
         return jsonify({"error": "query is required"}), 400
 
-    history = _settings().get_json("search_history", [])
+    history = _settings().get_json("search_history", [], organization_id=org_id)
 
-    # Remove duplicates (case-insensitive)
     history = [h for h in history if h.lower() != query.lower()]
 
-    # Prepend and cap
     history.insert(0, query)
     history = history[:MAX_HISTORY_SIZE]
 
-    _settings().set_json("search_history", history, "Recent search queries")
+    _settings().set_json(
+        "search_history", history, "Recent search queries", organization_id=org_id
+    )
     return jsonify({"success": True, "history": history})
 
 
@@ -81,7 +88,10 @@ def add_search_history():
 @api_login_required
 def clear_search_history():
     """Clear all search history."""
-    _settings().set_json("search_history", [], "Recent search queries")
+    org_id = _get_org_id()
+    _settings().set_json(
+        "search_history", [], "Recent search queries", organization_id=org_id
+    )
     return jsonify({"success": True})
 
 
@@ -92,7 +102,8 @@ def clear_search_history():
 @api_login_required
 def get_ai_enhancement():
     """Return the AI history enhancement preference (default: true)."""
-    val = _settings().get("ai_history_enhancement", "true")
+    org_id = _get_org_id()
+    val = _settings().get("ai_history_enhancement", "true", organization_id=org_id)
     enabled = val.lower() in ("true", "1", "yes") if isinstance(val, str) else bool(val)
     return jsonify({"enabled": enabled})
 
@@ -101,6 +112,7 @@ def get_ai_enhancement():
 @api_login_required
 def set_ai_enhancement():
     """Set the AI history enhancement preference."""
+    org_id = _get_org_id()
     data = request.get_json()
     if data is None or "enabled" not in data:
         return jsonify({"error": "enabled is required"}), 400
@@ -109,6 +121,7 @@ def set_ai_enhancement():
         "ai_history_enhancement",
         str(enabled).lower(),
         "Use search history for AI recommendations",
+        organization_id=org_id,
     )
     return jsonify({"success": True, "enabled": enabled})
 
@@ -120,7 +133,8 @@ def set_ai_enhancement():
 @api_login_required
 def get_last_sync_time():
     """Return the last folder sync timestamp."""
-    ts = _settings().get("last_sync_time")
+    org_id = _get_org_id()
+    ts = _settings().get("last_sync_time", organization_id=org_id)
     return jsonify({"last_sync_time": ts})
 
 
@@ -128,11 +142,14 @@ def get_last_sync_time():
 @api_login_required
 def set_last_sync_time():
     """Store the last folder sync timestamp."""
+    org_id = _get_org_id()
     data = request.get_json()
     ts = data.get("timestamp") if data else None
     if not ts:
         return jsonify({"error": "timestamp is required"}), 400
-    _settings().set("last_sync_time", ts, "Last folder sync time")
+    _settings().set(
+        "last_sync_time", ts, "Last folder sync time", organization_id=org_id
+    )
     return jsonify({"success": True, "last_sync_time": ts})
 
 
@@ -143,7 +160,8 @@ def set_last_sync_time():
 @api_login_required
 def get_last_archive_sync_time():
     """Return the last archive sync timestamp."""
-    ts = _settings().get("last_archive_sync_time")
+    org_id = _get_org_id()
+    ts = _settings().get("last_archive_sync_time", organization_id=org_id)
     return jsonify({"last_archive_sync_time": ts})
 
 
@@ -151,11 +169,14 @@ def get_last_archive_sync_time():
 @api_login_required
 def set_last_archive_sync_time():
     """Store the last archive sync timestamp."""
+    org_id = _get_org_id()
     data = request.get_json()
     ts = data.get("timestamp") if data else None
     if not ts:
         return jsonify({"error": "timestamp is required"}), 400
-    _settings().set("last_archive_sync_time", ts, "Last archive sync time")
+    _settings().set(
+        "last_archive_sync_time", ts, "Last archive sync time", organization_id=org_id
+    )
     return jsonify({"success": True, "last_archive_sync_time": ts})
 
 
@@ -238,7 +259,8 @@ def factory_reset():
 @api_login_required
 def get_bookmarks_enabled():
     """Get bookmarks enabled state (default: true)."""
-    val = _settings().get("bookmarks_enabled", "true")
+    org_id = _get_org_id()
+    val = _settings().get("bookmarks_enabled", "true", organization_id=org_id)
     enabled = val.lower() in ("true", "1", "yes") if isinstance(val, str) else bool(val)
     return jsonify({"enabled": enabled})
 
@@ -247,12 +269,16 @@ def get_bookmarks_enabled():
 @api_login_required
 def set_bookmarks_enabled():
     """Set bookmarks enabled state."""
+    org_id = _get_org_id()
     data = request.get_json()
     if data is None or "enabled" not in data:
         return jsonify({"error": "enabled is required"}), 400
     enabled = bool(data["enabled"])
     _settings().set(
-        "bookmarks_enabled", str(enabled).lower(), "Enable/disable bookmarks feature"
+        "bookmarks_enabled",
+        str(enabled).lower(),
+        "Enable/disable bookmarks feature",
+        organization_id=org_id,
     )
     return jsonify({"success": True, "enabled": enabled})
 
@@ -264,7 +290,8 @@ def set_bookmarks_enabled():
 @api_login_required
 def get_bookmarks():
     """Get all bookmarks."""
-    bookmarks = _bookmark().get_all()
+    org_id = _get_org_id()
+    bookmarks = _bookmark().get_all(organization_id=org_id)
     return jsonify(
         {
             "bookmarks": [
@@ -286,6 +313,7 @@ def get_bookmarks():
 @api_login_required
 def add_bookmark():
     """Add or update a bookmark."""
+    org_id = _get_org_id()
     data = request.get_json()
     slot = data.get("slot")
     doc_id = data.get("doc_id")
@@ -296,11 +324,12 @@ def add_bookmark():
     if not all([slot, doc_id, title, file_type]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    # Validate slot is 1-5
     if not (1 <= slot <= 5):
         return jsonify({"error": "Slot must be 1-5"}), 400
 
-    bookmark = _bookmark().upsert(slot, doc_id, title, file_type, file_path)
+    bookmark = _bookmark().upsert(
+        slot, doc_id, title, file_type, file_path, organization_id=org_id
+    )
     return jsonify(
         {
             "success": True,
@@ -318,7 +347,8 @@ def add_bookmark():
 @api_login_required
 def delete_bookmark(slot):
     """Delete a bookmark by slot."""
-    _bookmark().delete_by_slot(slot)
+    org_id = _get_org_id()
+    _bookmark().delete_by_slot(slot, organization_id=org_id)
     return jsonify({"success": True})
 
 
@@ -326,7 +356,8 @@ def delete_bookmark(slot):
 @api_login_required
 def get_bookmark_by_doc(doc_id):
     """Check if a document is bookmarked."""
-    bookmark = _bookmark().get_by_doc_id(doc_id)
+    org_id = _get_org_id()
+    bookmark = _bookmark().get_by_doc_id(doc_id, organization_id=org_id)
     if bookmark:
         return jsonify({"bookmarked": True, "slot": bookmark.slot})
     return jsonify({"bookmarked": False})

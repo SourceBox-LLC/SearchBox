@@ -140,12 +140,20 @@ def login():
     session["user_name"] = user.name
     session["auth_time"] = datetime.utcnow().timestamp()
 
-    # Derive KEK from password for vault encryption
+    if user.organization_id:
+        session["organization_id"] = user.organization_id
+
     try:
         with current_app.app_context():
-            vault_config = get_vault_config(current_app.VaultConfig)
+            vault_config = get_vault_config(
+                current_app.VaultConfig, organization_id=user.organization_id
+            )
             if vault_config and "salt" in vault_config:
-                kek = derive_kek_from_password(current_app.VaultConfig, password)
+                kek = derive_kek_from_password(
+                    current_app.VaultConfig,
+                    password,
+                    organization_id=user.organization_id,
+                )
                 if kek:
                     session["vault_kek"] = kek.hex()
     except Exception as e:

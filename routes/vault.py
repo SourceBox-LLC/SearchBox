@@ -29,7 +29,7 @@ from flask import Blueprint, jsonify, request, current_app
 
 from config import VAULT_FOLDER
 from services.vault_service import get_vault_config
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 
 vault_bp = Blueprint("vault", __name__)
 logger = logging.getLogger(__name__)
@@ -39,13 +39,15 @@ logger = logging.getLogger(__name__)
 @api_login_required
 def vault_status():
     """Check if vault encryption is set up."""
-    config = get_vault_config(current_app.VaultConfig)
+    org_id = get_current_organization_id()
+    config = get_vault_config(current_app.VaultConfig, organization_id=org_id)
+    encrypted_count = 0
+    if hasattr(current_app, "EncryptedFile"):
+        encrypted_count = len(current_app.EncryptedFile.get_all(organization_id=org_id))
     return jsonify(
         {
             "encryption_enabled": "salt" in config,
-            "files_encrypted": current_app.EncryptedFile.count()
-            if hasattr(current_app, "EncryptedFile")
-            else 0,
+            "files_encrypted": encrypted_count,
         }
     )
 
@@ -62,6 +64,7 @@ def vault_reset():
             {"error": "Confirmation required. Set 'confirm': true in request body."}
         ), 400
 
+    org_id = get_current_organization_id()
     deleted_files = 0
 
     for f in glob.glob(os.path.join(VAULT_FOLDER, "*.enc")):
@@ -81,10 +84,10 @@ def vault_reset():
                 logger.error(f"Failed to delete {fpath}: {e}")
 
     if hasattr(current_app, "EncryptedFile"):
-        current_app.EncryptedFile.clear_all()
+        current_app.EncryptedFile.clear_all(organization_id=org_id)
 
     if hasattr(current_app, "VaultConfig"):
-        current_app.VaultConfig.clear()
+        current_app.VaultConfig.clear(organization_id=org_id)
 
     logger.info(f"Vault reset: deleted {deleted_files} files")
     return jsonify({"success": True, "deleted_files": deleted_files})

@@ -38,7 +38,7 @@ from services.document_service import (
     CPP_EXTRACTOR,
 )
 from services.meilisearch_service import get_meili_client
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 from routes.helpers import get_config as _get_config, get_index as _get_index
 
 folders_bp = Blueprint("folders", __name__)
@@ -234,8 +234,9 @@ def index_status():
 @api_login_required
 def get_indexed_folders():
     """Get list of indexed folders."""
+    org_id = get_current_organization_id()
     IndexedFolder = current_app.IndexedFolder
-    folders = IndexedFolder.get_all()
+    folders = IndexedFolder.get_all(organization_id=org_id)
     return jsonify({"folders": [folder.folder_path for folder in folders]})
 
 
@@ -243,9 +244,10 @@ def get_indexed_folders():
 @api_login_required
 def sync_folders():
     """Sync indexed folders to find new/changed files. Uses batch Meilisearch writes."""
+    org_id = get_current_organization_id()
     try:
         IndexedFolder = current_app.IndexedFolder
-        indexed_folders = IndexedFolder.get_all()
+        indexed_folders = IndexedFolder.get_all(organization_id=org_id)
         indexed_folder_paths = [folder.folder_path for folder in indexed_folders]
 
         if not indexed_folder_paths:

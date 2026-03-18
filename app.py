@@ -32,7 +32,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from models import create_models
 
-BASE_DIR = os.path.dirname(__file__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SAAS_MODE = os.environ.get("SAAS_MODE", "false").lower() == "true"
 
 
 def create_app():
@@ -48,11 +50,12 @@ def create_app():
         f"sqlite:///{os.path.join(db_dir, 'searchbox.db')}"
     )
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB upload limit
+    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
-    app.config["WTF_CSRF_TIME_LIMIT"] = None  # CSRF token valid for session lifetime
+    app.config["WTF_CSRF_TIME_LIMIT"] = None
+    app.config["SAAS_MODE"] = SAAS_MODE
 
     csrf = CSRFProtect(app)
 
@@ -60,6 +63,10 @@ def create_app():
     db.init_app(app)
 
     (
+        Organization,
+        Team,
+        TeamMember,
+        User,
         Settings,
         IndexedFolder,
         VaultConfig,
@@ -67,12 +74,20 @@ def create_app():
         QBTorrent,
         IndexedArchive,
         Bookmark,
-        User,
     ) = create_models(db)
 
     with app.app_context():
         db.create_all()
 
+        if not SAAS_MODE:
+            from services.migration_service import ensure_default_organization
+
+            ensure_default_organization(db, Organization, User, app)
+
+    app.Organization = Organization
+    app.Team = Team
+    app.TeamMember = TeamMember
+    app.User = User
     app.Settings = Settings
     app.IndexedFolder = IndexedFolder
     app.VaultConfig = VaultConfig
@@ -80,10 +95,8 @@ def create_app():
     app.QBTorrent = QBTorrent
     app.IndexedArchive = IndexedArchive
     app.Bookmark = Bookmark
-    app.User = User
     app.db = db
 
-    # Register blueprints - auth first so setup check runs before other routes
     from routes.auth import auth_bp
     from routes.pages import pages_bp
     from routes.meilisearch_routes import meilisearch_bp
@@ -106,7 +119,6 @@ def create_app():
     app.register_blueprint(qbittorrent_bp)
     app.register_blueprint(zim_bp)
 
-    # Meilisearch auto-start and cleanup
     from services.config_service import get_searchbox_config
     from services.meilisearch_service import auto_start_meilisearch, cleanup
 

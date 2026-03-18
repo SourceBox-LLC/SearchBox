@@ -27,20 +27,20 @@ from utils.crypto import generate_salt, derive_kek, generate_dek, wrap_dek, unwr
 logger = logging.getLogger(__name__)
 
 
-def get_vault_config(VaultConfig):
+def get_vault_config(VaultConfig, organization_id=None):
     """Get vault configuration from database."""
-    vault_config = VaultConfig.get()
+    vault_config = VaultConfig.get(organization_id=organization_id)
     if vault_config:
         return {"salt": vault_config.salt}
     return {}
 
 
-def save_vault_config(VaultConfig, config):
+def save_vault_config(VaultConfig, config, organization_id=None):
     """Save vault configuration to database."""
-    VaultConfig.set(config["salt"])
+    VaultConfig.set(config["salt"], organization_id=organization_id)
 
 
-def init_vault_encryption(VaultConfig, password):
+def init_vault_encryption(VaultConfig, password, organization_id=None):
     """
     Initialize vault encryption with admin password.
     Generates a salt for key derivation.
@@ -48,44 +48,48 @@ def init_vault_encryption(VaultConfig, password):
     Args:
         VaultConfig: The VaultConfig model class.
         password (str): Admin password for key derivation.
+        organization_id (int, optional): Organization ID for multi-tenant.
 
     Returns:
         dict: {'salt': bytes}
     """
     salt = generate_salt()
-    VaultConfig.set(salt)
+    VaultConfig.set(salt, organization_id=organization_id)
     logger.info("Vault encryption initialized successfully")
     return {"salt": salt}
 
 
-def derive_kek_from_password(VaultConfig, password):
+def derive_kek_from_password(VaultConfig, password, organization_id=None):
     """
     Derive the Key Encryption Key (KEK) from admin password.
 
     Args:
         VaultConfig: The VaultConfig model class.
         password (str): Admin password.
+        organization_id (int, optional): Organization ID for multi-tenant.
 
     Returns:
         bytes: 32-byte KEK, or None if vault not initialized.
     """
-    config = get_vault_config(VaultConfig)
+    config = get_vault_config(VaultConfig, organization_id=organization_id)
     if "salt" not in config:
         return None
     return derive_kek(password, config["salt"])
 
 
-def setup_vault(VaultConfig, password):
+def setup_vault(VaultConfig, password, organization_id=None):
     """
     Set up vault encryption with a password.
 
     Note: This is kept for backward compatibility.
     Use init_vault_encryption for new code.
     """
-    return init_vault_encryption(VaultConfig, password)
+    return init_vault_encryption(VaultConfig, password, organization_id=organization_id)
 
 
-def rotate_encryption_key(VaultConfig, EncryptedFile, old_password, new_password):
+def rotate_encryption_key(
+    VaultConfig, EncryptedFile, old_password, new_password, organization_id=None
+):
     """
     Rotate the encryption key by re-wrapping all file DEKs.
 
@@ -94,11 +98,12 @@ def rotate_encryption_key(VaultConfig, EncryptedFile, old_password, new_password
         EncryptedFile: The EncryptedFile model class.
         old_password (str): Current admin password.
         new_password (str): New admin password.
+        organization_id (int, optional): Organization ID for multi-tenant.
 
     Returns:
         dict: {'success': bool, 'files_rewrapped': int}
     """
-    config = get_vault_config(VaultConfig)
+    config = get_vault_config(VaultConfig, organization_id=organization_id)
     old_salt = config["salt"]
 
     old_kek = derive_kek(old_password, old_salt)
@@ -106,7 +111,7 @@ def rotate_encryption_key(VaultConfig, EncryptedFile, old_password, new_password
     new_salt = generate_salt()
     new_kek = derive_kek(new_password, new_salt)
 
-    encrypted_files = EncryptedFile.get_all()
+    encrypted_files = EncryptedFile.get_all(organization_id=organization_id)
     rewrapped = 0
     for ef in encrypted_files:
         try:
@@ -118,7 +123,7 @@ def rotate_encryption_key(VaultConfig, EncryptedFile, old_password, new_password
             logger.error(f"Failed to re-wrap DEK for {ef.doc_id}: {e}")
             raise RuntimeError(f"Failed to re-wrap key for file {ef.doc_id}") from e
 
-    VaultConfig.set(new_salt)
+    VaultConfig.set(new_salt, organization_id=organization_id)
 
     logger.info(f"Encryption key rotated, re-wrapped {rewrapped} file keys")
     return {"success": True, "files_rewrapped": rewrapped}
