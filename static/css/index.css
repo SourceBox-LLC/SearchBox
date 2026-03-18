@@ -3566,3 +3566,205 @@
         align-items: flex-start;
       }
     }
+
+/* Quick Shortcuts Section */
+.quick-shortcuts {
+  padding: 40px 0 20px 0;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 30px;
+  justify-items: center;
+}
+
+.shortcut-item {
+  width: 80px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(88, 166, 255, 0.08);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shortcut-item:hover {
+  background: rgba(88, 166, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.shortcut-item.empty {
+  /* Empty state - same as default for now */
+}
+
+.shortcut-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.plus-icon {
+  width: 20px;
+  height: 20px;
+  color: #58a6ff;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.shortcut-item:hover .plus-icon {
+  opacity: 1;
+}
+
+/* Bookmark Modal */
+.bookmark-modal-content {
+  width: 100%;
+  max-width: 450px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.bookmark-modal-content .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.bookmark-modal-content .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #c9d1d9;
+}
+
+/* File Type Badges */
+.file-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  margin-bottom: 6px;
+}
+
+.file-type-badge.pdf { background: rgba(220, 38, 38, 0.15); color: #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+.file-type-badge.docx { background: rgba(37, 99, 235, 0.15); color: #2563eb; border-color: rgba(37, 99, 235, 0.3); }
+.file-type-badge.xlsx { background: rgba(22, 163, 74, 0.15); color: #16a34a; border-color: rgba(22, 163, 74, 0.3); }
+.file-type-badge.md { background: rgba(168, 85, 247, 0.15); color: #a855f7; border-color: rgba(168, 85, 247, 0.3); }
+.file-type-badge.txt { background: rgba(107, 114, 128, 0.15); color: #6b7280; border-color: rgba(107, 114, 128, 0.3); }
+.file-type-badge.html { background: rgba(249, 115, 22, 0.15); color: #f97316; border-color: rgba(249, 115, 22, 0.3); }
+
+.shortcut-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.shortcut-title {
+  font-size: 11px;
+  color: #c9d1d9;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #8b949e;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 8px 12px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: #238636;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #2ea043;
+}
+
+.btn-secondary {
+  background: #21262d;
+  color: #c9d1d9;
+  border: 1px solid #30363d;
+}
+
+.btn-secondary:hover {
+  background: #30363d;
+}
+
+.btn-danger {
+  background: #da3633;
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background: #f85149;
+}

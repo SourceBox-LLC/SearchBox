@@ -1,14 +1,28 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 SourceBox LLC
+#
+# This file is part of SearchBox.
+# SearchBox is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SearchBox is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with SearchBox. If not, see <https://www.gnu.org/licenses/>.
+
 """
-Vault PIN management service for SearchBox.
-Handles PIN verification, key derivation, and vault lifecycle.
+Vault encryption service for SearchBox.
+Handles key derivation and vault lifecycle using admin password.
 """
 
 import logging
 
-from utils.crypto import (
-    generate_salt, derive_kek, compute_pin_hash,
-    generate_dek, wrap_dek, unwrap_dek
-)
+from utils.crypto import generate_salt, derive_kek, generate_dek, wrap_dek, unwrap_dek
 
 logger = logging.getLogger(__name__)
 
@@ -17,101 +31,81 @@ def get_vault_config(VaultConfig):
     """Get vault configuration from database."""
     vault_config = VaultConfig.get()
     if vault_config:
-        return {
-            'pin_hash': vault_config.pin_hash,  # bytes
-            'salt': vault_config.salt            # bytes
-        }
+        return {"salt": vault_config.salt}
     return {}
 
 
 def save_vault_config(VaultConfig, config):
     """Save vault configuration to database."""
-    VaultConfig.set(config['pin_hash'], config['salt'])
+    VaultConfig.set(config["salt"])
 
 
-def setup_vault(VaultConfig, pin):
+def init_vault_encryption(VaultConfig, password):
     """
-    Set up a new vault with the given PIN.
-    Generates a salt, derives the PIN hash, and stores both.
+    Initialize vault encryption with admin password.
+    Generates a salt for key derivation.
 
     Args:
         VaultConfig: The VaultConfig model class.
-        pin (str): The user's 4-digit PIN.
+        password (str): Admin password for key derivation.
 
     Returns:
-        dict: {'salt': bytes, 'pin_hash': bytes}
+        dict: {'salt': bytes}
     """
     salt = generate_salt()
-    pin_hash = compute_pin_hash(pin, salt)
-    VaultConfig.set(pin_hash, salt)
-    logger.info("Vault PIN set up successfully")
-    return {'salt': salt, 'pin_hash': pin_hash}
+    VaultConfig.set(salt)
+    logger.info("Vault encryption initialized successfully")
+    return {"salt": salt}
 
 
-def verify_pin(VaultConfig, pin):
+def derive_kek_from_password(VaultConfig, password):
     """
-    Verify a PIN against the stored hash.
+    Derive the Key Encryption Key (KEK) from admin password.
 
     Args:
         VaultConfig: The VaultConfig model class.
-        pin (str): PIN to verify.
+        password (str): Admin password.
 
     Returns:
-        bool: True if PIN is correct.
+        bytes: 32-byte KEK, or None if vault not initialized.
     """
     config = get_vault_config(VaultConfig)
-    if 'pin_hash' not in config:
-        return False
-
-    expected_hash = config['pin_hash']
-    salt = config['salt']
-    actual_hash = compute_pin_hash(pin, salt)
-    return actual_hash == expected_hash
-
-
-def derive_kek_from_pin(VaultConfig, pin):
-    """
-    Derive the Key Encryption Key (KEK) from the PIN.
-    Must verify PIN first before calling this.
-
-    Args:
-        VaultConfig: The VaultConfig model class.
-        pin (str): Verified PIN.
-
-    Returns:
-        bytes: 32-byte KEK, or None if vault not set up.
-    """
-    config = get_vault_config(VaultConfig)
-    if 'salt' not in config:
+    if "salt" not in config:
         return None
-    return derive_kek(pin, config['salt'])
+    return derive_kek(password, config["salt"])
 
 
-def change_pin(VaultConfig, EncryptedFile, old_pin, new_pin):
+def setup_vault(VaultConfig, password):
     """
-    Change the vault PIN and re-wrap all file DEKs.
+    Set up vault encryption with a password.
+
+    Note: This is kept for backward compatibility.
+    Use init_vault_encryption for new code.
+    """
+    return init_vault_encryption(VaultConfig, password)
+
+
+def rotate_encryption_key(VaultConfig, EncryptedFile, old_password, new_password):
+    """
+    Rotate the encryption key by re-wrapping all file DEKs.
 
     Args:
         VaultConfig: The VaultConfig model class.
         EncryptedFile: The EncryptedFile model class.
-        old_pin (str): Current PIN (already verified).
-        new_pin (str): New PIN.
+        old_password (str): Current admin password.
+        new_password (str): New admin password.
 
     Returns:
         dict: {'success': bool, 'files_rewrapped': int}
     """
     config = get_vault_config(VaultConfig)
-    old_salt = config['salt']
+    old_salt = config["salt"]
 
-    # Derive old KEK
-    old_kek = derive_kek(old_pin, old_salt)
+    old_kek = derive_kek(old_password, old_salt)
 
-    # Generate new salt and derive new KEK + hash
     new_salt = generate_salt()
-    new_kek = derive_kek(new_pin, new_salt)
-    new_pin_hash = compute_pin_hash(new_pin, new_salt)
+    new_kek = derive_kek(new_password, new_salt)
 
-    # Re-wrap all file DEKs
     encrypted_files = EncryptedFile.get_all()
     rewrapped = 0
     for ef in encrypted_files:
@@ -124,8 +118,7 @@ def change_pin(VaultConfig, EncryptedFile, old_pin, new_pin):
             logger.error(f"Failed to re-wrap DEK for {ef.doc_id}: {e}")
             raise RuntimeError(f"Failed to re-wrap key for file {ef.doc_id}") from e
 
-    # Update vault config with new salt and hash
-    VaultConfig.set(new_pin_hash, new_salt)
+    VaultConfig.set(new_salt)
 
-    logger.info(f"PIN changed successfully, re-wrapped {rewrapped} file keys")
-    return {'success': True, 'files_rewrapped': rewrapped}
+    logger.info(f"Encryption key rotated, re-wrapped {rewrapped} file keys")
+    return {"success": True, "files_rewrapped": rewrapped}

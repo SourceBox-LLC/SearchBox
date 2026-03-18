@@ -92,5 +92,5 @@
 {% block scripts %}
   <script src="https://cdn.jsdelivr.net/npm/meilisearch@0.35.0/dist/bundles/meilisearch.umd.min.js"></script>
   <script>const MEILI_HOST = {{ meili.host|tojson }};const MEILI_API_KEY = {{ meili.api_key|tojson }};</script>
-  <script src="{{ url_for('static', filename='js/explore.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/explore.js') }}?v=2"></script>
 {% endblock %}

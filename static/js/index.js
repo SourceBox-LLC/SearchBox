@@ -21,6 +21,222 @@
     const resultsList = document.getElementById('results-list');
     const searchBtn = document.getElementById('search-btn');
     const footer = document.getElementById('footer');
+    
+    // Quick Shortcuts
+    const quickShortcutsContainer = document.getElementById('quick-shortcuts');
+    const shortcutItems = document.querySelectorAll('.shortcut-item');
+    
+    // Bookmarks
+    let bookmarks = [];
+    
+    async function loadBookmarks() {
+      try {
+        const response = await fetch('/api/bookmarks');
+        const data = await response.json();
+        bookmarks = data.bookmarks || [];
+      } catch (err) {
+        console.error('Error loading bookmarks:', err);
+        bookmarks = [];
+      }
+    }
+    
+    function renderShortcuts() {
+      // First check if bookmarks are enabled
+      fetch('/api/settings/bookmarks-enabled')
+        .then(response => response.json())
+        .then(data => {
+          if (!data.enabled) {
+            // Hide shortcuts container if disabled
+            quickShortcutsContainer.style.display = 'none';
+            return;
+          }
+          
+          // Show shortcuts container
+          quickShortcutsContainer.style.display = 'block';
+          
+          // Render shortcuts as before
+          renderShortcutsContent();
+        })
+        .catch(err => {
+          console.error('Error checking bookmarks enabled:', err);
+          // If we can't check, show bookmarks (fail open)
+          quickShortcutsContainer.style.display = 'block';
+          renderShortcutsContent();
+        });
+    }
+    
+    function renderShortcutsContent() {
+      // Render shortcuts as before
+      shortcutItems.forEach(item => {
+        const slot = parseInt(item.dataset.slot);
+        const bookmark = bookmarks.find(b => b.slot === slot);
+        
+        if (bookmark) {
+          // Render bookmarked document
+          item.classList.remove('empty');
+          item.innerHTML = `
+            <div class="shortcut-content">
+              <span class="file-type-badge ${bookmark.file_type}">.${bookmark.file_type}</span>
+              <span class="shortcut-title">${escapeHtml(bookmark.title)}</span>
+            </div>
+          `;
+          item.title = bookmark.title;
+          item.onclick = () => window.open(`/view/${bookmark.doc_id}`, '_blank');
+        } else {
+          // Render empty state
+          item.classList.add('empty');
+          item.innerHTML = `
+            <div class="shortcut-content">
+              <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+          `;
+          item.title = 'Add Bookmark';
+          item.onclick = () => openBookmarkModal(slot);
+        }
+        
+        // Right-click to edit
+        item.oncontextmenu = (e) => {
+          e.preventDefault();
+          if (bookmark) {
+            openBookmarkModal(slot, bookmark);
+          }
+        };
+      });
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    function openBookmarkModal(slot, bookmark = null) {
+      const modal = document.getElementById('bookmark-modal');
+      const title = document.getElementById('bookmark-modal-title');
+      const slotInput = document.getElementById('bookmark-slot');
+      const docIdInput = document.getElementById('bookmark-doc-id');
+      const titleInput = document.getElementById('bookmark-title');
+      const typeInput = document.getElementById('bookmark-file-type');
+      const pathInput = document.getElementById('bookmark-file-path');
+      const deleteBtn = document.getElementById('bookmark-delete-btn');
+      
+      slotInput.value = slot;
+      
+      if (bookmark) {
+        // Edit mode
+        title.textContent = 'Edit Bookmark';
+        docIdInput.value = bookmark.doc_id;
+        titleInput.value = bookmark.title;
+        typeInput.value = bookmark.file_type;
+        pathInput.value = bookmark.file_path || '';
+        deleteBtn.style.display = 'block';
+      } else {
+        // Add mode
+        title.textContent = 'Add Bookmark';
+        docIdInput.value = '';
+        titleInput.value = '';
+        typeInput.value = '';
+        pathInput.value = '';
+        deleteBtn.style.display = 'none';
+      }
+      
+      modal.style.display = 'flex';
+    }
+    
+    function closeBookmarkModal() {
+      document.getElementById('bookmark-modal').style.display = 'none';
+    }
+    
+    async function saveBookmark() {
+      const slot = parseInt(document.getElementById('bookmark-slot').value);
+      const docId = document.getElementById('bookmark-doc-id').value.trim();
+      const title = document.getElementById('bookmark-title').value.trim();
+      const fileType = document.getElementById('bookmark-file-type').value.trim();
+      const filePath = document.getElementById('bookmark-file-path').value.trim();
+      
+      if (!docId || !title || !fileType) {
+        alert('Please fill in all required fields');
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/bookmarks', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+          },
+          body: JSON.stringify({
+            slot,
+            doc_id: docId,
+            title,
+            file_type: fileType,
+            file_path: filePath
+          })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          await loadBookmarks();
+          renderShortcuts();
+          closeBookmarkModal();
+          showToast('Bookmark saved');
+        } else {
+          alert(data.error || 'Failed to save bookmark');
+        }
+      } catch (err) {
+        console.error('Error saving bookmark:', err);
+        alert('Failed to save bookmark');
+      }
+    }
+    
+    async function deleteBookmark() {
+      const slot = parseInt(document.getElementById('bookmark-slot').value);
+      
+      if (!confirm('Remove this bookmark?')) return;
+      
+      try {
+        const response = await fetch(`/api/bookmarks/${slot}`, {
+          method: 'DELETE',
+          headers: {
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+          }
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          await loadBookmarks();
+          renderShortcuts();
+          closeBookmarkModal();
+          showToast('Bookmark removed');
+        }
+      } catch (err) {
+        console.error('Error deleting bookmark:', err);
+        alert('Failed to delete bookmark');
+      }
+    }
+    
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #238636;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 6px;
+        z-index: 10000;
+        animation: slideUp 0.3s ease;
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
 
     // Notification elements
     const notificationBtn = document.getElementById('notification-btn');
@@ -106,109 +322,7 @@
       setTimeout(() => toast.remove(), 300);
     }
 
-    // Vault PIN Modal for search results
-    const vaultPinModal = document.getElementById('vault-pin-modal');
-    const vaultPinModalClose = document.getElementById('vault-pin-modal-close');
-    const vaultPinInputs = document.querySelectorAll('#vault-pin-inputs .vault-pin-box');
-    const vaultPinError = document.getElementById('vault-pin-error');
-    // Button removed - auto-submit handles PIN entry
-    let pendingVaultDocId = null;
-    let pendingVaultSearchQuery = '';
-    let pendingVaultSearchPage = '1';
-
-    function openVaultResult(docId, searchQuery = '', searchPage = '1') {
-      pendingVaultDocId = docId;
-      pendingVaultSearchQuery = searchQuery;
-      pendingVaultSearchPage = searchPage;
-      vaultPinError.textContent = '';
-      vaultPinInputs.forEach(input => input.value = '');
-      vaultPinModal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-      setTimeout(() => vaultPinInputs[0].focus(), 100);
-    }
-
-    function closeVaultPinModal() {
-      vaultPinModal.style.display = 'none';
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-      pendingVaultDocId = null;
-    }
-
-    vaultPinModalClose.addEventListener('click', closeVaultPinModal);
-    vaultPinModal.addEventListener('click', (e) => {
-      if (e.target === vaultPinModal) closeVaultPinModal();
-    });
-
-    // PIN input navigation for vault modal
-    let isVerifying = false;
-    
-    vaultPinInputs.forEach((input, index) => {
-      input.addEventListener('input', (e) => {
-        const value = e.target.value;
-        if (value && index < vaultPinInputs.length - 1) {
-          vaultPinInputs[index + 1].focus();
-        }
-        // Auto-submit when all 4 digits entered (with slight delay to ensure value is set)
-        if (index === 3 && value) {
-          setTimeout(() => verifySearchVaultPin(), 50);
-        }
-      });
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && !e.target.value && index > 0) {
-          vaultPinInputs[index - 1].focus();
-        }
-        if (e.key === 'Enter') {
-          verifySearchVaultPin();
-        }
-      });
-    });
-
-    async function verifySearchVaultPin() {
-      if (isVerifying) return;
-      
-      const pin = Array.from(vaultPinInputs).map(i => i.value).join('');
-      if (pin.length !== 4) {
-        vaultPinError.textContent = 'Please enter all 4 digits';
-        return;
-      }
-
-      isVerifying = true;
-
-      try {
-        const response = await authFetch('/api/vault/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin })
-        });
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          // Cache verified PIN for this session (uploads, file serving)
-          sessionStorage.setItem('vaultPin', pin);
-          
-          const docId = pendingVaultDocId;
-          const searchQuery = pendingVaultSearchQuery;
-          const searchPage = pendingVaultSearchPage;
-          closeVaultPinModal();
-          
-          // Build URL with search context
-          let viewUrl = `/view/${docId}`;
-          if (searchQuery) {
-            viewUrl += `?q=${encodeURIComponent(searchQuery)}&page=${searchPage}`;
-          }
-          window.location.href = viewUrl;
-        } else {
-          vaultPinError.textContent = data.error || 'Invalid PIN. Please try again.';
-          vaultPinInputs.forEach(input => input.value = '');
-          vaultPinInputs[0].focus();
-        }
-      } catch (error) {
-        vaultPinError.textContent = 'Error verifying PIN';
-      } finally {
-        isVerifying = false;
-      }
-    }
+    // No PIN modal needed - authentication is handled at login
 
     function addNotification(type, title, message, showToastNow = true) {
       const notification = {
@@ -1268,108 +1382,27 @@
 
     // Store uploaded files
     let uploadedFiles = [];
-    let vaultUnlocked = false;
 
     // Vault state elements
-    const vaultNoPin = document.getElementById('vault-no-pin');
-    const vaultLocked = document.getElementById('vault-locked');
-    const vaultUnlockedEl = document.getElementById('vault-unlocked');
-    const vaultPinBoxes = document.querySelectorAll('.vault-pin-box');
-    const vaultPinStatus = document.getElementById('vault-pin-status');
+    const vaultReady = document.getElementById('vault-ready');
 
     const documentsSection = document.getElementById('documents-section');
 
+    // Vault state check - no PIN required, authentication handled at login
     async function checkVaultState() {
       try {
         const response = await fetch('/api/vault/status');
         const data = await response.json();
-        
-        if (!data.pin_set) {
-          // No PIN set - hide everything
-          vaultNoPin.style.display = 'flex';
-          vaultLocked.style.display = 'none';
-          vaultUnlockedEl.style.display = 'none';
-          documentsSection.style.display = 'none';
-        } else if (!vaultUnlocked) {
-          // PIN set but not unlocked - hide documents
-          vaultNoPin.style.display = 'none';
-          vaultLocked.style.display = 'flex';
-          vaultUnlockedEl.style.display = 'none';
-          documentsSection.style.display = 'none';
-          // Focus first PIN box
-          setTimeout(() => vaultPinBoxes[0]?.focus(), 100);
-        } else {
-          // Unlocked - show everything
-          vaultNoPin.style.display = 'none';
-          vaultLocked.style.display = 'none';
-          vaultUnlockedEl.style.display = 'block';
-          documentsSection.style.display = 'block';
+        // Show documents section directly - no PIN required
+        vaultReady = document.getElementById('vault-ready');
+        if (vaultReady) {
+          vaultReady.style.display = 'block';
         }
+        documentsSection.style.display = 'block';
       } catch (error) {
         console.error('Failed to check vault status:', error);
-      }
-    }
-
-    // Vault PIN box handling
-    vaultPinBoxes.forEach((box, index) => {
-      box.addEventListener('input', (e) => {
-        const value = e.target.value.replace(/[^0-9]/g, '');
-        e.target.value = value;
-        
-        if (value && index < vaultPinBoxes.length - 1) {
-          vaultPinBoxes[index + 1].focus();
-        }
-        
-        // Check if all boxes filled
-        const pin = Array.from(vaultPinBoxes).map(b => b.value).join('');
-        if (pin.length === 4) {
-          verifyVaultPin(pin);
-        }
-      });
-
-      box.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && !e.target.value && index > 0) {
-          vaultPinBoxes[index - 1].focus();
-        }
-      });
-    });
-
-    function clearVaultPinBoxes() {
-      vaultPinBoxes.forEach(box => {
-        box.value = '';
-        box.classList.remove('filled', 'error');
-      });
-      vaultPinBoxes[0]?.focus();
-    }
-
-    async function verifyVaultPin(pin) {
-      try {
-        const response = await authFetch('/api/vault/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: pin })
-        });
-        
-        if (response.ok) {
-          vaultPinStatus.textContent = '✓ Unlocked';
-          vaultPinStatus.className = 'vault-pin-status success';
-          vaultUnlocked = true;
-          setTimeout(() => {
-            checkVaultState();
-            vaultPinStatus.textContent = '';
-          }, 500);
-        } else {
-          vaultPinStatus.textContent = 'Incorrect PIN';
-          vaultPinStatus.className = 'vault-pin-status error';
-          vaultPinBoxes.forEach(b => b.classList.add('error'));
-          setTimeout(() => {
-            clearVaultPinBoxes();
-            vaultPinStatus.textContent = '';
-          }, 1000);
-        }
-      } catch (error) {
-        vaultPinStatus.textContent = 'Error verifying PIN';
-        vaultPinStatus.className = 'vault-pin-status error';
+        // Still show documents on error
+        documentsSection.style.display = 'block';
       }
     }
 
@@ -1487,7 +1520,7 @@
       indexStatus.textContent = 'Starting indexing job...';
       
       try {
-        const response = await pinAuthFetch('/api/folder/index', {
+        const response = await authFetch('/api/folder/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: folderPath })
@@ -1623,7 +1656,7 @@
         if (syncIcon) syncIcon.style.opacity = '0';
         if (syncText) syncText.textContent = 'Syncing...';
 
-        const response = await pinAuthFetch('/api/folders/sync', { method: 'POST' });
+        const response = await authFetch('/api/folders/sync', { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
@@ -1650,7 +1683,7 @@
           
           // Save last sync time
           const now = new Date().toISOString();
-          pinAuthFetch('/api/settings/last-sync-time', {
+          authFetch('/api/settings/last-sync-time', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ timestamp: now })
@@ -1747,7 +1780,7 @@
       }
       
       try {
-        const response = await pinAuthFetch('/api/folder/remove', {
+        const response = await authFetch('/api/folder/remove', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: folderPath })
@@ -1938,7 +1971,7 @@
       archiveStatus.textContent = 'Starting archive indexing...';
 
       try {
-        const response = await pinAuthFetch('/api/zim/index', {
+        const response = await authFetch('/api/zim/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: archivePath })
@@ -2038,7 +2071,7 @@
       showToast('info', 'Removing Archive', 'Deleting documents from index. This may take a moment...');
 
       try {
-        const response = await pinAuthFetch('/api/zim/remove', {
+        const response = await authFetch('/api/zim/remove', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: archivePath })
@@ -2121,7 +2154,7 @@
 
         showToast('info', 'Syncing Archives', 'Re-indexing all tracked archives. This may take a while...');
 
-        const response = await pinAuthFetch('/api/zim/sync', { method: 'POST' });
+        const response = await authFetch('/api/zim/sync', { method: 'POST' });
         const data = await response.json();
 
         if (data.success) {
@@ -2145,7 +2178,7 @@
           archiveSyncStatus.className = 'sync-status success';
 
           const now = new Date().toISOString();
-          pinAuthFetch('/api/settings/last-archive-sync-time', {
+          authFetch('/api/settings/last-archive-sync-time', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ timestamp: now })
@@ -2268,7 +2301,7 @@
     // Remove file (delete from backend)
     window.removeFile = async function(docId) {
       try {
-        const response = await pinAuthFetch(`/api/documents/${docId}`, {
+        const response = await authFetch(`/api/documents/${docId}`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -2288,7 +2321,7 @@
       formData.append('file', file);
       
       try {
-        const response = await pinAuthFetch('/api/upload', {
+        const response = await authFetch('/api/upload', {
           method: 'POST',
           body: formData
         });
@@ -3249,7 +3282,7 @@
       _searchHistoryCache = _searchHistoryCache.slice(0, 5);
 
       // Persist to database
-      pinAuthFetch('/api/settings/search-history', {
+      authFetch('/api/settings/search-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: query.trim() })
@@ -3269,7 +3302,7 @@
 
     function clearSearchHistory() {
       _searchHistoryCache = [];
-      pinAuthFetch('/api/settings/search-history', { method: 'DELETE' })
+      authFetch('/api/settings/search-history', { method: 'DELETE' })
         .catch(err => console.error('Failed to clear search history:', err));
       console.log('Search history cleared');
     }
@@ -3280,7 +3313,7 @@
 
     function setHistoryEnhancementEnabled(enabled) {
       _aiEnhancementCache = enabled;
-      pinAuthFetch('/api/settings/ai-enhancement', {
+      authFetch('/api/settings/ai-enhancement', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled: enabled })
@@ -3941,9 +3974,62 @@
     };
 
     // Add event listener for refresh button
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       const refreshBtn = document.getElementById('summary-refresh');
       if (refreshBtn) {
         refreshBtn.addEventListener('click', refreshSummary);
       }
+      
+    // Initialize bookmarks
+    await loadBookmarks();
+    renderShortcuts();
+    
+    // Load document info when opening bookmark modal from home page
+    async function loadDocumentInfo(docId) {
+      try {
+        const response = await fetch(`/api/document/${docId}`);
+        if (!response.ok) throw new Error('Document not found');
+        const doc = await response.json();
+        return {
+          filename: doc.filename,
+          file_type: doc.file_type,
+          file_path: doc.file_path
+        };
+      } catch (err) {
+        console.error('Error loading document info:', err);
+        return null;
+      }
+    }
+    
+    // Modal event listeners
+    document.getElementById('bookmark-modal-close').addEventListener('click', closeBookmarkModal);
+    document.getElementById('bookmark-cancel-btn').addEventListener('click', closeBookmarkModal);
+    document.getElementById('bookmark-save-btn').addEventListener('click', saveBookmark);
+    document.getElementById('bookmark-delete-btn').addEventListener('click', deleteBookmark);
+    
+    // Close on overlay click
+    document.getElementById('bookmark-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'bookmark-modal') {
+        closeBookmarkModal();
+      }
+    });
+    
+    // Add auto-fill functionality to doc ID input
+    document.getElementById('bookmark-doc-id').addEventListener('blur', async function() {
+      const docId = this.value.trim();
+      if (docId) {
+        const docInfo = await loadDocumentInfo(docId);
+        if (docInfo) {
+          if (!document.getElementById('bookmark-title').value) {
+            document.getElementById('bookmark-title').value = docInfo.filename;
+          }
+          if (!document.getElementById('bookmark-file-type').value) {
+            document.getElementById('bookmark-file-type').value = docInfo.file_type;
+          }
+          if (!document.getElementById('bookmark-file-path').value) {
+            document.getElementById('bookmark-file-path').value = docInfo.file_path || '';
+          }
+        }
+      }
+    });
     });

@@ -1,3 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 SourceBox LLC
+#
+# This file is part of SearchBox.
+# SearchBox is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SearchBox is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with SearchBox. If not, see <https://www.gnu.org/licenses/>.
+
 # ── Stage 1: Compile C++ document extractor ──
 # Must use bookworm (same glibc as runtime) for binary compatibility
 FROM debian:bookworm AS cpp-builder
@@ -65,6 +82,26 @@ RUN apt-get update \
 
 # Copy compiled C++ extractor binary from builder stage
 COPY --from=cpp-builder /build/out/doc_extractor /usr/local/bin/doc_extractor
+
+WORKDIR /app
+
+# Copy dependency files first for layer caching
+COPY pyproject.toml uv.lock .python-version ./
+
+# Install dependencies into .venv (without the project itself)
+RUN uv sync --frozen --no-install-project --no-dev
+
+# Copy application source
+COPY app.py config.py models.py ./
+COPY routes/ routes/
+COPY services/ services/
+COPY utils/ utils/
+COPY static/ static/
+COPY templates/ templates/
+
+# Copy entrypoint
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 WORKDIR /app
 

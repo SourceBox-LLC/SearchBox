@@ -1,6 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 SourceBox LLC
+#
+# This file is part of SearchBox.
+# SearchBox is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SearchBox is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with SearchBox. If not, see <https://www.gnu.org/licenses/>.
+
 """
 Vault file encryption utilities for SearchBox.
-Uses AES-256-GCM with envelope encryption (per-file DEKs wrapped by a PIN-derived KEK).
+Uses AES-256-GCM with envelope encryption (per-file DEKs wrapped by a password-derived KEK).
 """
 
 import os
@@ -15,10 +32,10 @@ logger = logging.getLogger(__name__)
 
 # Constants
 PBKDF2_ITERATIONS = 600_000
-SALT_LENGTH = 16       # 16-byte random salt
-DEK_LENGTH = 32        # AES-256
-NONCE_LENGTH = 12      # 96-bit nonce for AES-GCM
-TAG_LENGTH = 16        # GCM auth tag (included automatically by AESGCM)
+SALT_LENGTH = 16  # 16-byte random salt
+DEK_LENGTH = 32  # AES-256
+NONCE_LENGTH = 12  # 96-bit nonce for AES-GCM
+TAG_LENGTH = 16  # GCM auth tag (included automatically by AESGCM)
 
 
 def generate_salt():
@@ -26,12 +43,12 @@ def generate_salt():
     return os.urandom(SALT_LENGTH)
 
 
-def derive_kek(pin, salt):
+def derive_kek(password, salt):
     """
-    Derive a Key Encryption Key (KEK) from the user's PIN using PBKDF2.
+    Derive a Key Encryption Key (KEK) from the user's password using PBKDF2.
 
     Args:
-        pin (str): User's PIN (plaintext).
+        password (str): User's password (plaintext).
         salt (bytes): Random salt (16 bytes).
 
     Returns:
@@ -43,7 +60,7 @@ def derive_kek(pin, salt):
         salt=salt,
         iterations=PBKDF2_ITERATIONS,
     )
-    return kdf.derive(pin.encode('utf-8'))
+    return kdf.derive(password.encode("utf-8"))
 
 
 def generate_dek():
@@ -80,7 +97,7 @@ def unwrap_dek(kek, wrapped_dek):
         bytes: 32-byte plaintext DEK.
 
     Raises:
-        cryptography.exceptions.InvalidTag: If KEK is wrong (wrong PIN).
+        cryptography.exceptions.InvalidTag: If KEK is wrong.
     """
     aesgcm = AESGCM(kek)
     nonce = wrapped_dek[:NONCE_LENGTH]
@@ -102,16 +119,18 @@ def encrypt_file(dek, plaintext_path, encrypted_path):
     aesgcm = AESGCM(dek)
     nonce = os.urandom(NONCE_LENGTH)
 
-    with open(plaintext_path, 'rb') as f:
+    with open(plaintext_path, "rb") as f:
         plaintext = f.read()
 
     ciphertext = aesgcm.encrypt(nonce, plaintext, None)
 
-    with open(encrypted_path, 'wb') as f:
+    with open(encrypted_path, "wb") as f:
         f.write(nonce)
         f.write(ciphertext)
 
-    logger.debug(f"Encrypted {plaintext_path} -> {encrypted_path} ({len(plaintext)} bytes)")
+    logger.debug(
+        f"Encrypted {plaintext_path} -> {encrypted_path} ({len(plaintext)} bytes)"
+    )
 
 
 def decrypt_file(dek, encrypted_path):
@@ -131,7 +150,7 @@ def decrypt_file(dek, encrypted_path):
     """
     aesgcm = AESGCM(dek)
 
-    with open(encrypted_path, 'rb') as f:
+    with open(encrypted_path, "rb") as f:
         data = f.read()
 
     nonce = data[:NONCE_LENGTH]
@@ -139,7 +158,7 @@ def decrypt_file(dek, encrypted_path):
     return aesgcm.decrypt(nonce, ciphertext, None)
 
 
-def decrypt_file_to_temp(dek, encrypted_path, suffix=''):
+def decrypt_file_to_temp(dek, encrypted_path, suffix=""):
     """
     Decrypt a file to a temporary file on disk.
 
@@ -161,29 +180,3 @@ def decrypt_file_to_temp(dek, encrypted_path, suffix=''):
 
     logger.debug(f"Decrypted {encrypted_path} -> {temp_path}")
     return temp_path
-
-
-def compute_pin_hash(pin, salt):
-    """
-    Compute a verifiable hash of the PIN using PBKDF2 with a separate derivation.
-    This is stored in the DB to verify the PIN without needing to try decryption.
-
-    Uses a different purpose string appended to the salt to ensure the hash
-    derivation is independent from the KEK derivation.
-
-    Args:
-        pin (str): User's PIN.
-        salt (bytes): Same salt used for KEK derivation.
-
-    Returns:
-        bytes: 32-byte hash for PIN verification.
-    """
-    # Use salt + b'_verify' so this derivation is independent from KEK
-    verify_salt = salt + b'_verify'
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=verify_salt,
-        iterations=PBKDF2_ITERATIONS,
-    )
-    return kdf.derive(pin.encode('utf-8'))

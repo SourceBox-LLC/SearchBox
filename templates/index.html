@@ -137,6 +137,52 @@
       </div>
     </div>
     
+    <!-- Quick Shortcuts -->
+    <div class="quick-shortcuts" id="quick-shortcuts">
+      <div class="shortcut-grid">
+        <div class="shortcut-item empty" data-slot="1">
+          <div class="shortcut-content">
+            <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="shortcut-item empty" data-slot="2">
+          <div class="shortcut-content">
+            <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="shortcut-item empty" data-slot="3">
+          <div class="shortcut-content">
+            <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="shortcut-item empty" data-slot="4">
+          <div class="shortcut-content">
+            <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="shortcut-item empty" data-slot="5">
+          <div class="shortcut-content">
+            <svg class="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    
     <!-- Search Recommendations -->
     <div class="search-recommendations" id="search-recommendations" style="display: none;">
       <div class="recommendations-header">
@@ -398,11 +444,11 @@
 
         <div class="help-section">
           <h3>🔐 Vault Security</h3>
-          <p>Protected documents require PIN access:</p>
+          <p>Protected documents are encrypted at rest:</p>
           <ul class="help-list">
-            <li>🔒 <strong>Vault documents</strong> show with lock icons in results</li>
-            <li>🔑 <strong>4-digit PIN</strong> required for access (set in Settings)</li>
-            <li>⚡ <strong>Auto-submit</strong> when PIN is fully entered</li>
+            <li>🔒 <strong>Vault documents</strong> are encrypted with your admin password</li>
+            <li>🔐 <strong>Encryption</strong> is managed automatically when you log in</li>
+            <li>📁 <strong>Upload files</strong> to the vault for secure storage</li>
             <li>🔍 <strong>Advanced search</strong> works with vault documents too</li>
           </ul>
         </div>
@@ -497,38 +543,8 @@
 
         <!-- Vault Tab Content -->
         <div class="tab-content active" id="vault-tab">
-          <!-- State 1: No PIN Set -->
-          <div class="vault-state" id="vault-no-pin">
-            <div class="vault-message">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="1.5">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <p class="vault-message-title">No vault PIN set</p>
-              <p class="vault-message-text">You can create your PIN in the <a href="/settings" class="vault-link">settings</a></p>
-            </div>
-          </div>
-
-          <!-- State 2: PIN Required (Locked) -->
-          <div class="vault-state" id="vault-locked" style="display: none;">
-            <div class="vault-pin-entry">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="1.5">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-              </svg>
-              <p class="vault-pin-title">Enter your PIN to unlock vault</p>
-              <div class="vault-pin-boxes">
-                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="0">
-                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="1">
-                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="2">
-                <input type="password" class="vault-pin-box" maxlength="1" inputmode="numeric" pattern="[0-9]" data-index="3">
-              </div>
-              <p class="vault-pin-status" id="vault-pin-status"></p>
-            </div>
-          </div>
-
-          <!-- State 3: Unlocked - Upload Zone -->
-          <div class="vault-state" id="vault-unlocked" style="display: none;">
+          <!-- Upload Zone -->
+          <div class="vault-state" id="vault-ready">
             <!-- Hidden File Input -->
             <input type="file" id="file-input" multiple accept=".pdf,.txt,.docx,.md" style="display: none;">
             
@@ -689,28 +705,45 @@
     </div>
   </div>
 
-  <!-- Vault PIN Modal (for search results) -->
-  <div class="modal-overlay" id="vault-pin-modal" style="display: none;">
-    <div class="modal" style="max-width: 360px;">
+  <!-- Bookmark Modal -->
+  <div class="modal-overlay" id="bookmark-modal" style="display: none;">
+    <div class="modal bookmark-modal-content">
       <div class="modal-header">
-        <h2>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
-          Vault Document
-        </h2>
-        <button class="modal-close" id="vault-pin-modal-close">&times;</button>
+        <h3 id="bookmark-modal-title">Add Bookmark</h3>
+        <button class="modal-close" id="bookmark-modal-close">&times;</button>
       </div>
-      <div class="modal-body" style="padding: 24px;">
-        <p style="color: #8b949e; margin-bottom: 16px; text-align: center;">Enter your PIN to view this protected document</p>
-        <div class="vault-pin-boxes" id="vault-pin-inputs">
-          <input type="password" maxlength="1" class="vault-pin-box" data-index="0" inputmode="numeric" pattern="[0-9]*">
-          <input type="password" maxlength="1" class="vault-pin-box" data-index="1" inputmode="numeric" pattern="[0-9]*">
-          <input type="password" maxlength="1" class="vault-pin-box" data-index="2" inputmode="numeric" pattern="[0-9]*">
-          <input type="password" maxlength="1" class="vault-pin-box" data-index="3" inputmode="numeric" pattern="[0-9]*">
-        </div>
-        <div id="vault-pin-error" style="color: #f85149; text-align: center; font-size: 0.85rem; min-height: 20px;"></div>
+      
+      <div class="modal-body">
+        <form id="bookmark-form">
+          <input type="hidden" id="bookmark-slot" value="">
+          
+          <div class="form-group">
+            <label for="bookmark-doc-id">Document ID *</label>
+            <input type="text" id="bookmark-doc-id" placeholder="394349f1" required>
+            <small class="form-hint">From URL: /view/394349f1</small>
+          </div>
+          
+          <div class="form-group">
+            <label for="bookmark-title">Title *</label>
+            <input type="text" id="bookmark-title" placeholder="LICENSE.md" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="bookmark-file-type">File Type *</label>
+            <input type="text" id="bookmark-file-type" placeholder="md" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="bookmark-file-path">File Path (optional)</label>
+            <input type="text" id="bookmark-file-path" placeholder="/c/Users/...">
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="bookmark-cancel-btn">Cancel</button>
+        <button class="btn btn-primary" id="bookmark-save-btn">Save</button>
+        <button class="btn btn-danger" id="bookmark-delete-btn" style="display: none;">Remove</button>
       </div>
     </div>
   </div>
@@ -723,5 +756,5 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/meilisearch@0.35.0/dist/bundles/meilisearch.umd.min.js"></script>
   <script>const MEILI_HOST = {{ meili.host|tojson }};const MEILI_API_KEY = {{ meili.api_key|tojson }};</script>
-  <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/index.js') }}?v=2"></script>
 {% endblock %}

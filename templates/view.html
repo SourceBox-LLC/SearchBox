@@ -64,5 +64,5 @@
 
 {% block scripts %}
   <script>const docId = {{ doc_id|tojson }};</script>
-  <script src="{{ url_for('static', filename='js/view.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/view.js') }}?v=2"></script>
 {% endblock %}

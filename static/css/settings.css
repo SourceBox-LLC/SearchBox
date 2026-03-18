@@ -655,6 +655,49 @@
       border-top: 1px solid #21262d;
     }
 
+    /* Global Save Bar */
+    .save-bar-wrapper {
+      position: sticky;
+      bottom: 0;
+      background: #0d1117;
+      border-top: 1px solid #30363d;
+      z-index: 100;
+      padding: 16px 24px;
+    }
+
+    .save-bar {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .save-bar .btn {
+      min-width: 180px;
+    }
+
+    .save-status {
+      font-size: 0.9rem;
+      color: #8b949e;
+    }
+
+    .save-status.success {
+      color: #3fb950;
+    }
+
+    .save-status.error {
+      color: #f85149;
+    }
+
+    .qbt-actions {
+      display: flex;
+      gap: 12px;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+
     /* Toast Notifications */
     .toast-container {
       position: fixed;
@@ -1037,6 +1080,20 @@
       }
 
       .qbt-actions .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .save-bar-wrapper {
+        padding: 12px 16px;
+      }
+
+      .save-bar {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .save-bar .btn {
         width: 100%;
         justify-content: center;
       }

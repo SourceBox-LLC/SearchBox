@@ -1,0 +1,16 @@
+# Windows-specific Docker Compose override file
+# Usage: docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d
+
+services:
+  searchbox:
+    volumes:
+      # Replace Linux mounts with Windows drive mounts
+      - C:/:/c:ro
+      # Uncomment additional drives as needed:
+      # - D:/:/d:ro
+      # - E:/:/e:ro
+      # - F:/:/f:ro
+      # Add more drives as needed
+      # Note: Linux mounts (/home, /mnt, /media) from the base compose file
+      # are automatically replaced when this override is used on Windows
+

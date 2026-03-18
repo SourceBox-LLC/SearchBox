@@ -1,3 +1,20 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 SourceBox LLC
+#
+# This file is part of SearchBox.
+# SearchBox is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# SearchBox is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with SearchBox. If not, see <https://www.gnu.org/licenses/>.
+
 """
 SearchBox — Local document search engine with AI-powered summaries.
 Application factory and entrypoint.
@@ -24,23 +41,34 @@ def create_app():
 
     logging.basicConfig(level=logging.INFO)
 
-    app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
-    db_dir = os.environ.get('SEARCHBOX_DB_DIR', BASE_DIR)
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+    db_dir = os.environ.get("SEARCHBOX_DB_DIR", BASE_DIR)
     os.makedirs(db_dir, exist_ok=True)
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(db_dir, "searchbox.db")}'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB upload limit
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
-    app.config['WTF_CSRF_TIME_LIMIT'] = None  # CSRF token valid for session lifetime
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        f"sqlite:///{os.path.join(db_dir, 'searchbox.db')}"
+    )
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB upload limit
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+    app.config["WTF_CSRF_TIME_LIMIT"] = None  # CSRF token valid for session lifetime
 
     csrf = CSRFProtect(app)
 
     db = SQLAlchemy()
     db.init_app(app)
 
-    Settings, IndexedFolder, VaultConfig, EncryptedFile, QBTorrent, IndexedArchive = create_models(db)
+    (
+        Settings,
+        IndexedFolder,
+        VaultConfig,
+        EncryptedFile,
+        QBTorrent,
+        IndexedArchive,
+        Bookmark,
+        User,
+    ) = create_models(db)
 
     with app.app_context():
         db.create_all()
@@ -51,9 +79,12 @@ def create_app():
     app.EncryptedFile = EncryptedFile
     app.QBTorrent = QBTorrent
     app.IndexedArchive = IndexedArchive
+    app.Bookmark = Bookmark
+    app.User = User
     app.db = db
 
-    # Register blueprints
+    # Register blueprints - auth first so setup check runs before other routes
+    from routes.auth import auth_bp
     from routes.pages import pages_bp
     from routes.meilisearch_routes import meilisearch_bp
     from routes.documents import documents_bp
@@ -64,6 +95,7 @@ def create_app():
     from routes.qbittorrent import qbittorrent_bp
     from routes.zim import zim_bp
 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(pages_bp)
     app.register_blueprint(meilisearch_bp)
     app.register_blueprint(documents_bp)
@@ -89,7 +121,8 @@ def create_app():
 
 app = create_app()
 
+
 if __name__ == "__main__":
-    host = os.environ.get('SEARCHBOX_HOST', '127.0.0.1')
-    port = int(os.environ.get('SEARCHBOX_PORT', '5000'))
+    host = os.environ.get("SEARCHBOX_HOST", "127.0.0.1")
+    port = int(os.environ.get("SEARCHBOX_PORT", "5000"))
     app.run(host=host, port=port, debug=False)

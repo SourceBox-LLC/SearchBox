@@ -228,6 +228,12 @@ let documentData = null;
                 </svg>
                 Copy File Path
               </button>
+              <button class="quick-action-btn" onclick="toggleBookmark()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span id="bookmark-btn-text">Bookmark</span>
+              </button>
             </div>
           </div>
         </aside>
@@ -480,6 +486,12 @@ let documentData = null;
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
                 Copy File Path
+              </button>
+              <button class="quick-action-btn" onclick="toggleBookmark()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span id="bookmark-btn-text">Bookmark</span>
               </button>
             </div>
           </div>
@@ -958,3 +970,136 @@ let documentData = null;
         }
       }
     });
+
+    // Bookmark functionality
+    let currentBookmarkSlot = null;
+
+    async function checkIfBookmarked() {
+      try {
+        const response = await fetch(`/api/bookmarks/document/${docId}`);
+        const data = await response.json();
+        if (data.bookmarked) {
+          currentBookmarkSlot = data.slot;
+          const btnText = document.getElementById('bookmark-btn-text');
+          if (btnText) btnText.textContent = 'Bookmarked';
+        }
+      } catch (err) {
+        console.error('Error checking bookmark:', err);
+      }
+    }
+
+    async function toggleBookmark() {
+      // Check if bookmarks are enabled
+      try {
+        const response = await fetch('/api/settings/bookmarks-enabled');
+        const data = await response.json();
+        
+        if (!data.enabled) {
+          alert('Bookmarks are disabled. Enable them in Settings to use this feature.');
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking bookmarks enabled:', err);
+        // If we can't check, we'll allow bookmarking (fail open)
+      }
+      
+      if (currentBookmarkSlot) {
+        // Remove bookmark
+        if (confirm('Remove this bookmark?')) {
+          try {
+            const response = await fetch(`/api/bookmarks/${currentBookmarkSlot}`, { 
+              method: 'DELETE',
+              headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+              }
+            });
+            const data = await response.json();
+            if (data.success) {
+              currentBookmarkSlot = null;
+              const btnText = document.getElementById('bookmark-btn-text');
+              if (btnText) btnText.textContent = 'Bookmark';
+              showToast('Bookmark removed');
+            }
+          } catch (err) {
+            console.error('Error removing bookmark:', err);
+            alert('Failed to remove bookmark');
+          }
+        }
+      } else {
+        // Add bookmark - automatically assign to first available slot
+        try {
+          // First, check which slots are available
+          const response = await fetch('/api/bookmarks');
+          const data = await response.json();
+          const existingSlots = data.bookmarks.map(b => b.slot);
+          
+          // Find first available slot (1-5)
+          let slot = null;
+          for (let i = 1; i <= 5; i++) {
+            if (!existingSlots.includes(i)) {
+              slot = i;
+              break;
+            }
+          }
+          
+          if (slot === null) {
+            alert('All bookmark slots are full. Please remove a bookmark first.');
+            return;
+          }
+          
+          // Add bookmark to the available slot
+          const addResponse = await fetch('/api/bookmarks', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            body: JSON.stringify({
+              slot: slot,
+              doc_id: docId,
+              title: documentData.filename,
+              file_type: documentData.file_type,
+              file_path: documentData.file_path
+            })
+          });
+          
+          const addData = await addResponse.json();
+          if (addData.success) {
+            currentBookmarkSlot = slot;
+            const btnText = document.getElementById('bookmark-btn-text');
+            if (btnText) btnText.textContent = 'Bookmarked';
+            showToast(`Bookmark added to slot ${slot}`);
+          } else {
+            alert(addData.error || 'Failed to add bookmark');
+          }
+        } catch (err) {
+          console.error('Error adding bookmark:', err);
+          alert('Failed to add bookmark');
+        }
+      }
+    }
+
+    function showToast(message) {
+      // Simple toast notification
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #238636;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 6px;
+        z-index: 10000;
+        animation: slideUp 0.3s ease;
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Check if document is bookmarked after loading
+    if (typeof docId !== 'undefined') {
+      setTimeout(checkIfBookmarked, 1000);
+    }
