@@ -51,7 +51,11 @@ from utils.crypto import (
     decrypt_file,
     decrypt_file_to_temp,
 )
-from routes.helpers import get_config as _get_config, get_index as _get_index
+from routes.helpers import (
+    get_config as _get_config,
+    get_index as _get_index,
+    get_current_organization_id,
+)
 from utils.decorators import api_login_required
 
 documents_bp = Blueprint("documents", __name__)
@@ -110,7 +114,6 @@ def _decrypt_vault_file(doc_id, file_path_on_disk):
 
         return decrypt_file(dek, full_path)
     else:
-        # Legacy unencrypted file
         if not os.path.exists(full_path):
             raise FileNotFoundError(f"File not found: {full_path}")
         with open(full_path, "rb") as f:
@@ -297,13 +300,13 @@ def upload_file():
 
     image_metadata = extract_image_metadata(temp_path, doc_id, file_ext)
 
-    # Encrypt the file
-    vault_config = get_vault_config(current_app.VaultConfig)
+    org_id = get_current_organization_id()
+
+    vault_config = get_vault_config(current_app.VaultConfig, organization_id=org_id)
     encrypted_filename = safe_filename + ".enc"
     encrypted_path = os.path.join(VAULT_FOLDER, encrypted_filename)
 
     if "salt" in vault_config:
-        # Vault is set up — encrypt the file
         kek = _get_session_kek()
         if not kek:
             os.remove(temp_path)
@@ -317,15 +320,14 @@ def upload_file():
 
             wrapped = wrap_dek(kek, dek)
 
-            # Store encryption metadata
             current_app.EncryptedFile.create(
                 doc_id=doc_id,
                 wrapped_dek=wrapped,
                 encrypted_filename=encrypted_filename,
                 original_filename=file.filename,
+                organization_id=org_id,
             )
 
-            # Delete the plaintext temp file
             os.remove(temp_path)
             logger.info(f"File {doc_id} encrypted successfully")
 
@@ -333,14 +335,12 @@ def upload_file():
 
         except Exception as e:
             logger.error(f"Encryption failed for {doc_id}: {e}", exc_info=True)
-            # Clean up
             if os.path.exists(temp_path):
                 os.remove(temp_path)
             if os.path.exists(encrypted_path):
                 os.remove(encrypted_path)
             return jsonify({"error": f"File encryption failed: {str(e)}"}), 500
     else:
-        # Vault not set up — store plaintext (legacy behavior)
         stored_filename = safe_filename
         logger.warning(f"Vault not set up — file {doc_id} stored unencrypted")
 
@@ -354,6 +354,7 @@ def upload_file():
         "file_path": stored_filename,
         "source": "vault",
         "folder_root": None,
+        "organization_id": org_id,
         **image_metadata,
     }
 
