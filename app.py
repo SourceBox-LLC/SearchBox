@@ -107,6 +107,7 @@ def create_app():
     from routes.settings import settings_bp
     from routes.qbittorrent import qbittorrent_bp
     from routes.zim import zim_bp
+    from routes.organization import organization_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(pages_bp)
@@ -118,6 +119,7 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(qbittorrent_bp)
     app.register_blueprint(zim_bp)
+    app.register_blueprint(organization_bp)
 
     from services.config_service import get_searchbox_config
     from services.meilisearch_service import auto_start_meilisearch, cleanup
