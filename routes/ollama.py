@@ -25,7 +25,7 @@ import logging
 from flask import Blueprint, jsonify, request, Response, current_app
 
 from routes.helpers import get_config as _get_config
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 
 ollama_bp = Blueprint("ollama", __name__)
 logger = logging.getLogger(__name__)

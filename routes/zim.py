@@ -34,13 +34,12 @@ from services.zim_service import (
 )
 from services.meilisearch_service import get_meili_client
 from config import INDEX_NAME
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 from routes.helpers import get_config as _get_config, get_index as _get_index
 
 zim_bp = Blueprint("zim", __name__)
 logger = logging.getLogger(__name__)
 
-# Background job tracker for archive indexing
 _archive_jobs = {}
 _jobs_lock = threading.Lock()
 

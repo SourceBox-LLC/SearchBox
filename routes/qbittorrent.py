@@ -36,13 +36,12 @@ from services.document_service import (
 )
 from services.meilisearch_service import get_meili_client
 from services.qbittorrent_service import create_client
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 from routes.helpers import get_config as _get_config, get_index as _get_index
 
 qbittorrent_bp = Blueprint("qbittorrent", __name__)
 logger = logging.getLogger(__name__)
 
-# Max file size for text extraction (50 MB) — larger files are skipped to avoid timeouts
 MAX_INDEX_FILE_SIZE = 50 * 1024 * 1024
 
 
