@@ -204,18 +204,28 @@ def auth_status():
         session.clear()
         return jsonify({"setup_required": False, "authenticated": False, "user": None})
 
-    return jsonify(
-        {
-            "setup_required": False,
-            "authenticated": True,
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "name": user.name,
-                "role": user.role,
-            },
-        }
-    )
+    response = {
+        "setup_required": False,
+        "authenticated": True,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+        },
+    }
+
+    if user.organization_id:
+        org = current_app.Organization.query.get(user.organization_id)
+        if org:
+            response["organization"] = {
+                "id": org.id,
+                "name": org.name,
+                "slug": org.slug,
+                "plan": org.plan,
+            }
+
+    return jsonify(response)
 
 
 @auth_bp.route("/api/auth/change-password", methods=["POST"])
