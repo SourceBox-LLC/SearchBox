@@ -30,8 +30,9 @@ from services.meilisearch_service import (
     stop_meilisearch,
     get_documents_index,
     get_meili_client,
+    get_index_name_for_org,
 )
-from utils.decorators import api_login_required
+from utils.decorators import api_login_required, get_current_organization_id
 from routes.helpers import get_config as _get_config
 
 meilisearch_bp = Blueprint("meilisearch", __name__)
@@ -41,8 +42,10 @@ meilisearch_bp = Blueprint("meilisearch", __name__)
 @api_login_required
 def meilisearch_status():
     """Get Meilisearch status and stats."""
+    org_id = get_current_organization_id()
     config = _get_config()
     running = is_meilisearch_running(_get_config)
+    index_name = get_index_name_for_org(org_id)
 
     response = {
         "running": running,
@@ -51,6 +54,7 @@ def meilisearch_status():
         "auto_start": config["auto_start"],
         "binary_path": config["meilisearch_path"],
         "data_path": config["data_path"],
+        "index_name": index_name,
     }
 
     if running:
@@ -66,8 +70,8 @@ def meilisearch_status():
                 "database_size": stats.get("databaseSize", 0),
                 "indexes": stats.get("indexes", {}),
             }
-            if INDEX_NAME in stats.get("indexes", {}):
-                response["document_count"] = stats["indexes"][INDEX_NAME].get(
+            if index_name in stats.get("indexes", {}):
+                response["document_count"] = stats["indexes"][index_name].get(
                     "numberOfDocuments", 0
                 )
             else:
