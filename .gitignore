@@ -4,19 +4,20 @@
 searchbox.db
 searchbox.db-shm
 searchbox.db-wal
-instance/
+/instance/
 
 # Meilisearch data
-meili_data/
+/meili_data/
 
-# Vault storage
-vault/
+# Vault storage — the runtime data dir at the repo root, NOT the src/vault/
+# module. Anchored with a leading slash so it can't match src/vault/.
+/vault/
 
 # Generated thumbnails
 static/thumbnails/
 
 # Runtime logs
-log/
+/log/
 
 # IDE
 .windsurf/
