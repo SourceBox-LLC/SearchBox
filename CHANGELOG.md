@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.2 — 2026-05-30
+
+### Fixed
+- **The search engine now starts in the installed app.** When installed under
+  `Program Files`, the bundled Meilisearch engine inherited the app's
+  read-only working directory and exited immediately at startup (`Access is
+  denied, os error 5`), so search never worked. It's now launched with a
+  writable working directory (its data folder). The Settings → Search Engine
+  **Start** button also recovers when the engine has stopped, instead of
+  doing nothing.
+
 ## 0.2.1 — 2026-05-30
 
 ### Fixed
