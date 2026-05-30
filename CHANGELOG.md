@@ -3,13 +3,20 @@
 ## Unreleased
 
 ### Fixed
-- Home-page file-type filters (`::pdf`, `::docx`, `::&&`, …) now match
-  documents. They were emitting `file_type = ".pdf"` (leading dot) while
-  documents are indexed as `"pdf"`, so every file-type filter returned
-  nothing. The document viewer (`/view/…`) shared the same dotted-extension
-  bug and never initialized the PDF / DOCX / Markdown renderers — both fixed.
-- qBittorrent-indexed documents are now tagged `source = "qbittorrent"`
-  (previously `"folder"`), so the `::torrent` source filter works.
+- **Search filters and the document viewer now work.** Filters like `::pdf`,
+  `::docx`, and `::image` were silently matching nothing, and PDFs / Word docs
+  / Markdown wouldn't open in the built-in viewer — both were caused by the
+  same file-type mismatch, now corrected.
+- **The `::torrent` filter works.** Files indexed from qBittorrent downloads
+  are now tagged correctly, so you can narrow a search to just those.
+
+### Changed
+- **Windows: SearchBox is now a desktop app.** Instead of opening the default
+  browser and living in the system tray, the Windows release renders the UI in
+  its own native window (WebView2 via `wry`), backed by the same local server.
+  Closing the window quits cleanly — no more orphaned background process you
+  can't reopen. Dev (`cargo run`) and the Docker/Linux server build are
+  unchanged (headless).
 
 ## 0.1.0 — 2026-04-23
 

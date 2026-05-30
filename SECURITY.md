@@ -1,5 +1,15 @@
 # Security Policy
 
+> **In plain English:** SearchBox runs entirely on your own computer. It
+> doesn't send your files or activity anywhere, has no ads or tracking, and
+> works offline. Anything you put in the **vault** is encrypted with your
+> password — strong enough that the files can't be read without it. The
+> trade-off: **there's no password reset.** If you forget your password, the
+> vaulted files are gone for good, so keep it somewhere safe.
+>
+> The rest of this page is the technical detail and how to report a security
+> issue.
+
 ## Supported versions
 
 | Version | Supported |

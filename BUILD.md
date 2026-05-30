@@ -141,6 +141,11 @@ shipping — the REST shape and filter syntax occasionally change.
 
 ### Known limitations
 
+- **Requires WebView2.** The desktop window renders via Microsoft WebView2,
+  which ships with Windows 11 and current Windows 10. On older or freshly
+  imaged Windows 10 the runtime may be absent, and the MSI does not yet bundle
+  the WebView2 bootstrapper — so the window can fail to open. Bundling the
+  Evergreen WebView2 runtime in `wix\` is a pending follow-up.
 - **x64 only.** The WXS platform is hard-coded to `x64`; ARM64 Windows
   would need a second build with a different `--target` and a second
   MSI attached to the release.

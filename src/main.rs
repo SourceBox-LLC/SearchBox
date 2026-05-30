@@ -81,19 +81,16 @@ fn main() -> Result<()> {
         .build()
         .context("create tokio runtime")?;
 
-    // Bind the listening socket up front — synchronously, before we ever
-    // spawn the tray or start the runtime workers. This is how we detect
-    // "user double-clicked the shortcut twice": the second process loses
-    // the bind race, opens the browser at the existing instance's URL,
-    // and exits cleanly. Doing it here (rather than inside the axum task)
-    // means the second process never creates a duplicate tray icon.
+    // Bind the listening socket up front — synchronously, before we open
+    // the window or start the runtime workers. This is how we detect "user
+    // launched a second instance": the second process loses the bind race
+    // and exits cleanly (the first instance already owns the window), so we
+    // never end up with two windows fighting over the same port.
     let addr = format!("{}:{}", config.host, config.port);
     let listener = match runtime.block_on(TcpListener::bind(&addr)) {
         Ok(l) => l,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            tracing::warn!(%addr, "port already in use; opening browser at existing instance and exiting");
-            #[cfg(all(target_os = "windows", not(debug_assertions)))]
-            open_browser(&config);
+            tracing::warn!(%addr, "port already in use; another SearchBox instance is already running — exiting");
             return Ok(());
         }
         Err(e) => return Err(e).with_context(|| format!("bind {addr}")),
@@ -110,9 +107,10 @@ fn main() -> Result<()> {
         runtime.spawn(async move { run_server(cfg, listener, meili, shutdown).await })
     };
 
-    // Windows release: tray icon owns the main thread until the user
-    // picks "Quit". Everywhere else (dev `cargo run`, Linux, macOS) just
-    // block on Ctrl-C. Same shutdown plumbing in both branches.
+    // Windows release: the WebView window owns the main thread until the
+    // user closes it. Everywhere else (dev `cargo run`, Linux, macOS, the
+    // Docker/server build) just block on Ctrl-C. Same shutdown plumbing in
+    // both branches.
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
     {
         let host = if config.host == "0.0.0.0" {
@@ -121,7 +119,11 @@ fn main() -> Result<()> {
             config.host.clone()
         };
         let url = format!("http://{host}:{}", config.port);
-        run_tray(&url, shutdown.clone());
+        // Wait until the in-process server actually answers before pointing
+        // the WebView at it, so a slow first boot (DB open + session migrate)
+        // doesn't flash a connection error in the window.
+        wait_for_server(&runtime, &url);
+        run_webview(&url, shutdown.clone());
     }
 
     #[cfg(not(all(target_os = "windows", not(debug_assertions))))]
@@ -242,13 +244,6 @@ async fn run_server(
         });
     }
 
-    // On a Windows release build (i.e. launched from the MSI's Start Menu
-    // shortcut with no console attached) we're the user's only surface
-    // into the app — pop the browser at their local URL. Dev builds skip
-    // this so `cargo run` doesn't open a tab every code change.
-    #[cfg(all(target_os = "windows", not(debug_assertions)))]
-    open_browser(&config);
-
     let shutdown_signal = shutdown.clone();
     axum::serve(listener, app)
         .with_graceful_shutdown(async move {
@@ -281,107 +276,78 @@ async fn serve_static(AxumPath(path): AxumPath<String>) -> Response {
     }
 }
 
+/// Block until the in-process server answers `/api/health`, or ~10s elapse.
+/// Lets the WebView load a server that's actually serving rather than
+/// racing the DB-open / session-migrate that run before `axum::serve`.
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
-fn open_browser(config: &Config) {
-    let host = if config.host == "0.0.0.0" {
-        "localhost"
-    } else {
-        config.host.as_str()
-    };
-    let url = format!("http://{host}:{}", config.port);
-    tracing::info!(%url, "opening browser");
-    let _ = std::process::Command::new("cmd")
-        .args(["/C", "start", "", &url])
-        .spawn();
+fn wait_for_server(runtime: &tokio::runtime::Runtime, url: &str) {
+    let health = format!("{url}/api/health");
+    runtime.block_on(async {
+        let client = reqwest::Client::new();
+        for _ in 0..100 {
+            if let Ok(resp) = client.get(&health).send().await {
+                if resp.status().is_success() {
+                    return;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        tracing::warn!("server not ready after timeout; opening window anyway");
+    });
 }
 
-// System tray on the main thread. On Windows the shell-notify-icon API
-// requires a message-pump on the thread that created the icon, so we
-// can't push this onto a tokio worker — tao gives us the pump.
+// Native desktop window on the main thread. wry renders the existing web UI
+// (served by our own axum server on localhost) inside a WebView2 window, so
+// SearchBox is a real app rather than a browser tab. tao supplies the event
+// loop + window; wry attaches the WebView via raw-window-handle.
 //
-// The event loop blocks until the user picks "Quit"; at that point we
-// flip the shutdown Notify, which axum's `with_graceful_shutdown` is
-// awaiting on. Then we return and `main` drains the runtime.
+// Closing the window flips the shutdown Notify (which axum's
+// `with_graceful_shutdown` awaits) and exits the loop; `main` then drains
+// the runtime and stops Meilisearch — no lingering background process.
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
-fn run_tray(url: &str, shutdown: Arc<Notify>) {
-    use tao::event::Event;
-    use tao::event_loop::{ControlFlow, EventLoopBuilder};
+fn run_webview(url: &str, shutdown: Arc<Notify>) {
+    use tao::dpi::LogicalSize;
+    use tao::event::{Event, WindowEvent};
+    use tao::event_loop::{ControlFlow, EventLoop};
     use tao::platform::run_return::EventLoopExtRunReturn;
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
-    use tray_icon::{Icon, TrayIconBuilder};
+    use tao::window::WindowBuilder;
+    use wry::WebViewBuilder;
 
-    #[derive(Debug)]
-    enum UserEvent {
-        Menu(tray_icon::menu::MenuId),
-    }
-
-    let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
-
-    let menu = Menu::new();
-    let open_item = MenuItem::new("Open SearchBox", true, None);
-    let separator = PredefinedMenuItem::separator();
-    let quit_item = MenuItem::new("Quit SearchBox", true, None);
-    if let Err(e) = menu.append(&open_item) {
-        tracing::warn!("tray: append open: {e}");
-    }
-    if let Err(e) = menu.append(&separator) {
-        tracing::warn!("tray: append separator: {e}");
-    }
-    if let Err(e) = menu.append(&quit_item) {
-        tracing::warn!("tray: append quit: {e}");
-    }
-
-    let open_id = open_item.id().clone();
-    let quit_id = quit_item.id().clone();
-
-    // Pull the icon from the binary's own Windows resource section
-    // (winresource embeds wix\assets\searchbox.ico as resource id 1 via
-    // build.rs — see `set_icon` in winresource). If for some reason the
-    // resource isn't present, fall back to a tray with no icon rather
-    // than crashing — the menu still works.
-    let icon = Icon::from_resource(1, None).ok();
-
-    let mut builder = TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_tooltip(format!("SearchBox · {url}"));
-    if let Some(icon) = icon {
-        builder = builder.with_icon(icon);
-    }
-    let tray = match builder.build() {
-        Ok(t) => t,
+    let mut event_loop = EventLoop::new();
+    let window = match WindowBuilder::new()
+        .with_title("SearchBox")
+        .with_inner_size(LogicalSize::new(1280.0, 820.0))
+        .build(&event_loop)
+    {
+        Ok(w) => w,
         Err(e) => {
-            tracing::error!("tray build failed: {e}; shutting down");
+            tracing::error!("failed to create window: {e}; shutting down");
             shutdown.notify_one();
             return;
         }
     };
 
-    // Bridge tray-icon's static menu-event channel into the tao loop so
-    // we can react to clicks without polling.
-    let proxy = event_loop.create_proxy();
-    MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
-        let _ = proxy.send_event(UserEvent::Menu(event.id));
-    }));
+    // Keep the WebView bound for the lifetime of the loop — dropping it
+    // would tear down the rendered page.
+    let _webview = match WebViewBuilder::new().with_url(url).build(&window) {
+        Ok(wv) => wv,
+        Err(e) => {
+            tracing::error!("failed to create webview: {e}; shutting down");
+            shutdown.notify_one();
+            return;
+        }
+    };
 
-    let url_owned = url.to_string();
     event_loop.run_return(move |event, _target, control_flow| {
         *control_flow = ControlFlow::Wait;
-        if let Event::UserEvent(UserEvent::Menu(id)) = event {
-            if id == open_id {
-                let _ = std::process::Command::new("cmd")
-                    .args(["/C", "start", "", &url_owned])
-                    .spawn();
-            } else if id == quit_id {
-                tracing::info!("tray: quit selected");
-                shutdown.notify_one();
-                *control_flow = ControlFlow::Exit;
-            }
+        if let Event::WindowEvent {
+            event: WindowEvent::CloseRequested,
+            ..
+        } = event
+        {
+            tracing::info!("window closed; quitting searchbox");
+            shutdown.notify_one();
+            *control_flow = ControlFlow::Exit;
         }
     });
-
-    // Tray icon's Drop removes the shell-notify-icon entry — keep `tray`
-    // alive until run_return returns, then drop it explicitly so the
-    // icon disappears immediately rather than waiting for the function's
-    // stack unwind during process teardown.
-    drop(tray);
 }

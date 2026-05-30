@@ -72,14 +72,15 @@ mime_guess = "2"
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
-# System tray icon — Windows release-only UX surface. Without this the user
-# has no way to quit the app: closing the browser tab leaves the axum +
-# meilisearch processes running. tao is the event loop that hosts the
-# tray's hidden message-pump window (same crate tray-icon itself uses
-# internally; pinning to a matching version avoids muda duplication).
+# Desktop window — Windows release-only UX. wry renders the existing web UI
+# (served by the in-process axum server on localhost) inside a native
+# WebView2 window, so SearchBox is a real desktop app instead of popping the
+# user's browser. tao supplies the event loop + window that wry attaches the
+# WebView to; wry is windowing-agnostic via raw-window-handle 0.6, the same
+# version tao 0.30 uses.
 [target.'cfg(windows)'.dependencies]
-tray-icon = "0.19"
 tao = "0.30"
+wry = "0.46"
 
 [profile.release]
 lto = "thin"
