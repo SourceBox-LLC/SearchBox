@@ -15,6 +15,9 @@ vault/
 # Generated thumbnails
 static/thumbnails/
 
+# Runtime logs
+log/
+
 # IDE
 .windsurf/
 .idea/
