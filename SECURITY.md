@@ -1,172 +1,116 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-| Version | Supported | Notes |
-| ------- | --------- | ----- |
-| 2.3.x   | ✅ | Current release |
-| 2.2.x   | ✅ | Security fixes only |
-| < 2.2   | ❌ | End of life |
+| Version | Supported |
+|---------|-----------|
+| 0.1.x   | ✅ Current release (Rust rewrite) |
+| ≤ 2.x   | ❌ Python-era, unsupported |
 
-## Security Architecture
+## Architecture
 
-SearchBox is designed with security as a core principle:
+SearchBox runs entirely on the user's own machine. It opens no outbound
+network connections by default — Meilisearch runs as a local sidecar and
+Ollama is only contacted when the user explicitly enables it.
 
-### Data Privacy
-- **Local-first** — All processing happens on your infrastructure
-- **No telemetry** — No data sent to external servers
-- **No analytics** — No usage tracking
-- **No phone-home** — No background connections
+### Data privacy
+
+- All processing happens on your infrastructure.
+- No telemetry, no analytics, no phone-home.
 
 ### Encryption
-- **Vault** — AES-256-GCM encryption for sensitive files
-- **Key derivation** — PBKDF2 with 100,000 iterations
-- **Per-file keys** — Unique encryption key per file
-- **No key storage** — PIN is never stored; only verification hash
+
+- **Vault:** AES-256-GCM with a per-file Data-Encryption Key (DEK), 12-byte
+  random nonce, authenticated tag.
+- **Key derivation:** PBKDF2-HMAC-SHA256, 600 000 iterations, random 16-byte
+  salt stored once in `vault_config`.
+- **KEK lifecycle:** derived from the admin password at login, held only in
+  the session cookie payload (hex-encoded). Never persisted to disk.
+- **DEK wrapping:** each file's DEK is AES-256-GCM-wrapped under the KEK;
+  the wrapped blob is stored in `encrypted_files`.
 
 ### Authentication
-- **Session-based** — PIN verified once per session
-- **Rate limiting** — 5 attempts per IP, 5-minute lockout
-- **CSRF protection** — Flask-WTF tokens on state-changing requests
-- **Session timeout** — 30-minute default
 
-### Input Validation
-- **Path traversal prevention** — All file paths validated
-- **SQL injection prevention** — SQLAlchemy parameterized queries
-- **Filter injection prevention** — Meilisearch filters sanitized
-- **File type validation** — Only allowed extensions processed
+- Passwords hashed with **argon2id** via the `argon2` crate.
+- Sessions managed by `tower-sessions` with the SQLite store.
+- Cookies are `HttpOnly`, `SameSite=Lax`; flip `with_secure(true)` in
+  `src/main.rs` when serving over HTTPS.
 
-## Reporting a Vulnerability
+### Input validation
 
-### How to Report
+- Parameterised SQLx queries everywhere — no raw string concatenation in
+  SQL.
+- `url_for` and file-serving paths are rooted at known directories; no
+  path traversal entry points exposed.
+- SSRF guard on Ollama URL configuration — only `http://` / `https://`
+  schemes accepted.
+- Meilisearch configuration validates the binary path (must be a file,
+  basename must contain `meilisearch`).
 
-**Do NOT create a public GitHub issue.** Instead:
+### CSRF
 
-1. **Email:** security@sourcebox.dev
-2. **Subject:** `[SECURITY] Brief description`
-3. **Include:**
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Your contact information
+State-changing endpoints require a CSRF token. A 32-byte random token is
+generated per session and surfaced to the browser via a
+`<meta name="csrf-token">` tag and hidden form fields. Requests echo it back
+through the `X-CSRFToken` header (JSON/`fetch` routes) or a `csrf_token` form
+field (login/setup); the server compares it against the session token in
+constant time and rejects mismatches with `403`. This sits on top of
+`HttpOnly`, `SameSite=Lax` session cookies.
 
-### What to Expect
+## Reporting a vulnerability
 
-| Timeline | Response |
-|----------|----------|
-| 48 hours | Acknowledgment |
-| 7 days | Initial assessment |
-| 30 days | Target fix timeline |
-| 90 days | Maximum disclosure timeline |
+**Do NOT open a public GitHub issue.** Email
+`security@sourcebox.dev` with a description of the issue, reproduction
+steps, and potential impact. Include your preferred contact channel.
 
-### Disclosure Process
+Expected timeline: 48-hour acknowledgement, 30-day target fix, 90-day
+maximum disclosure window. We credit reporters in the release notes
+unless asked not to.
 
-1. Report received and acknowledged
-2. Vulnerability validated and severity assessed
-3. Fix developed and tested
-4. Fix released (patch version)
-5. CVE requested (if applicable)
-6. Public disclosure after 90 days or fix release
+### Out of scope
 
-### Safe Harbor
-
-We support responsible disclosure. If you act in good faith:
-- We will not pursue legal action
-- We will credit you in the disclosure (if desired)
-- We will work with you to resolve the issue
-
-### Out of Scope
-
-The following are explicitly out of scope:
-- Denial of service attacks
+- Denial-of-service attacks
 - Social engineering
-- Physical attacks on infrastructure
-- Vulnerabilities in third-party dependencies (report to upstream)
-- Vulnerabilities requiring physical access
+- Physical access
+- Bugs in upstream dependencies (report those upstream)
 
-## Third-Party Security
+## Dependencies worth watching
 
-### Dependencies
+- **Rust crates:** monitor [rustsec.org](https://rustsec.org) advisories
+  for `axum`, `tokio`, `sqlx`, `tower-sessions`, `reqwest`, `argon2`,
+  `aes-gcm`, `pdf-extract`, `scraper`.
+- **Meilisearch:** runs as a sidecar. Track its releases.
+- **Ollama (optional):** only contacted when configured.
 
-SearchBox uses these third-party components:
-- **Flask** — Web framework
-- **SQLAlchemy** — ORM
-- **Meilisearch** — Search engine
-- **MuPDF** — PDF processing
-- **libzim** — ZIM archive handling
-- **Cryptography** — Encryption library
+## Deployment hardening
 
-Report vulnerabilities in these dependencies to their respective maintainers.
+### Change the defaults
 
-### Security Updates
+```bash
+SEARCHBOX_SECRET_KEY=$(openssl rand -hex 32)
+MEILI_MASTER_KEY=$(openssl rand -hex 32)
+```
 
-We monitor:
-- GitHub Dependabot alerts
-- PyPI security advisories
-- CVE databases for dependencies
+### Terminate TLS upstream
 
-## Security Best Practices
+Put SearchBox behind Caddy / nginx with Let's Encrypt. Don't serve port
+8080 directly to the public internet.
 
-### Self-Hosted Deployment
+### Restrict index sources
 
-For production deployments:
+In Docker, only mount the directories you want indexed, read-only:
 
-1. **Change default secrets**
-   ```bash
-   # Generate secure keys
-   FLASK_SECRET_KEY=$(openssl rand -hex 32)
-   MEILI_MASTER_KEY=$(openssl rand -hex 16)
-   ```
+```yaml
+volumes:
+  - /home/me/Documents:/home/me/Documents:ro
+```
 
-2. **Enable HTTPS**
-   - Use Let's Encrypt with nginx/Caddy
-   - Never expose HTTP to the internet
+### Vault password
 
-3. **Restrict file access**
-   - Only mount directories that need indexing
-   - Use read-only mounts where possible
-
-4. **Keep updated**
-   - Monitor releases for security fixes
-   - Update Meilisearch regularly
-
-5. **Configure firewall**
-   ```bash
-   # Only expose web port
-   sudo ufw allow 443/tcp
-   sudo ufw enable
-   ```
-
-### Vault Security
-
-For encrypted files:
-
-1. **Choose a strong PIN**
-   - 4-digit PIN is required
-   - Avoid obvious patterns (1234, 0000)
-   - There is no recovery mechanism
-
-2. **Back up vault key**
-   - Store PIN securely
-   - Lost PIN = irrecoverable data
-
-3. **Limit file upload size**
-   - Configure in reverse proxy
-   - Prevent resource exhaustion
-
-## Security Contact
-
-- **Email:** security@sourcebox.dev
-- **PGP Key:** Coming soon
-- **Response Time:** 48 hours for acknowledgment
-
-## Security Hall of Fame
-
-We thank the following researchers for responsible disclosure:
-
-*No vulnerabilities reported yet. Be the first!*
+- Choose a strong admin password — it's the only thing between an
+  attacker with filesystem access and the vault contents.
+- There is no recovery. Lose the password → lose the encrypted files.
 
 ---
 
-**Last Updated:** March 2026
-**Policy Version:** 1.0
+**Last updated:** May 2026

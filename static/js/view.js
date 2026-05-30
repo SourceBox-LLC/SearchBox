@@ -24,6 +24,12 @@ let documentData = null;
         }
         
         documentData = await response.json();
+        // Backend stores file_type without a leading dot ("pdf", not ".pdf").
+        // Normalize defensively so the file-type checks below match whether or
+        // not a dot is present.
+        if (documentData && typeof documentData.file_type === 'string') {
+          documentData.file_type = documentData.file_type.replace(/^\./, '').toLowerCase();
+        }
         console.log('Document data loaded:', documentData);
         renderDocument();
       } catch (error) {
@@ -69,8 +75,8 @@ let documentData = null;
     function renderDocument() {
       const main = document.getElementById('main-content');
       const config = getFileTypeConfig(documentData.filename);
-      const isMarkdown = documentData.file_type === '.md';
-      const isZim = documentData.file_type === '.zim';
+      const isMarkdown = documentData.file_type === 'md';
+      const isZim = documentData.file_type === 'zim';
       
       // Add image detection
       if (documentData.is_image) {
@@ -110,7 +116,7 @@ let documentData = null;
             </div>
             <div class="document-content" id="document-content">
               <!-- Dynamic content renderer based on file type -->
-              ${documentData.file_type === '.pdf' ? `
+              ${documentData.file_type === 'pdf' ? `
                 <div class="pdf-viewer">
                   <div class="pdf-controls">
                     <button id="prev-page" onclick="previousPage()">← Previous</button>
@@ -136,7 +142,7 @@ let documentData = null;
                     <canvas id="pdf-canvas" style="display: none;"></canvas>
                   </div>
                 </div>
-              ` : documentData.file_type === '.docx' || documentData.file_type === '.doc' ? `
+              ` : documentData.file_type === 'docx' || documentData.file_type === 'doc' ? `
                 <div class="docx-viewer">
                   <div class="docx-controls">
                     <div class="docx-zoom-controls">
@@ -613,7 +619,7 @@ let documentData = null;
     let ctx = null;
 
     function initPDFViewer() {
-      if (documentData.file_type !== '.pdf') return;
+      if (documentData.file_type !== 'pdf') return;
       
       canvas = document.getElementById('pdf-canvas');
       ctx = canvas.getContext('2d');
@@ -777,7 +783,7 @@ let documentData = null;
     let docxScale = 1.0;
 
     function initDOCXViewer() {
-      if (documentData.file_type !== '.docx' && documentData.file_type !== '.doc') return;
+      if (documentData.file_type !== 'docx' && documentData.file_type !== 'doc') return;
       
       loadDOCX();
     }
@@ -918,9 +924,9 @@ let documentData = null;
       
       function initializeViewer() {
         // Initialize appropriate viewer based on file type
-        if (documentData.file_type === '.pdf') {
+        if (documentData.file_type === 'pdf') {
           initPDFViewer();
-        } else if (documentData.file_type === '.docx' || documentData.file_type === '.doc') {
+        } else if (documentData.file_type === 'docx' || documentData.file_type === 'doc') {
           initDOCXViewer();
         }
       }

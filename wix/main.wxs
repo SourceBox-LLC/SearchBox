@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WiX 3 template for the SearchBox MSI installer. Built via cargo-wix
+  (`cargo wix`); see BUILD.md for prerequisites (WiX Toolset v3.11+,
+  cargo-wix, a pre-built searchbox.exe, and a bundled meilisearch.exe).
+
+  Layout once installed:
+    %ProgramFiles%\SourceBox\SearchBox\
+      ├── searchbox.exe        (our Rust binary, assets embedded)
+      ├── meilisearch.exe      (sidecar the app spawns)
+      └── LICENSE
+    Start Menu\Programs\SearchBox\SearchBox.lnk
+
+  The shortcut launches searchbox.exe directly. The app spawns Meilisearch
+  from the same directory (see services/meili_process.rs — sibling-binary
+  auto-detect) and opens the web UI at http://localhost:8080, which you
+  can pin in a browser. Runtime writable state (DB, vault, thumbnails)
+  lives under %LocalAppData%\SearchBox\ per-user — not in ProgramFiles.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="SearchBox"
+    UpgradeCode="9B4E2E71-7B51-4E3E-9D6B-2C41FA8B8F1B"
+    Manufacturer="SourceBox LLC"
+    Language="1033"
+    Codepage="1252"
+    Version="$(var.Version)">
+
+    <Package
+      Id="*"
+      Keywords="Installer"
+      Description="SearchBox $(var.Version) Installer"
+      Manufacturer="SourceBox LLC"
+      InstallerVersion="450"
+      Languages="1033"
+      Compressed="yes"
+      InstallScope="perMachine"
+      SummaryCodepage="1252"
+      Platform="x64"/>
+
+    <MajorUpgrade
+      Schedule="afterInstallInitialize"
+      DowngradeErrorMessage="A newer version of SearchBox is already installed. Uninstall it first to downgrade."/>
+
+    <Media Id="1" Cabinet="searchbox.cab" EmbedCab="yes" DiskPrompt="Disk #1"/>
+    <Property Id="DiskPrompt" Value="SearchBox $(var.Version) Installation"/>
+    <Property Id="ARPPRODUCTICON" Value="ProductICO"/>
+    <Property Id="ARPHELPLINK" Value="https://github.com/SourceBox-LLC/SearchBox"/>
+    <Property Id="ARPURLINFOABOUT" Value="https://www.sourceboxai.com/"/>
+
+    <!-- Icon used for Start Menu / desktop / ARP / MSI itself. Produced
+         by wix\make-icon.ps1 at build time. -->
+    <Icon Id="ProductICO" SourceFile="wix\assets\searchbox.ico"/>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder" Name="PFiles">
+        <Directory Id="CompanyDir" Name="SourceBox">
+          <Directory Id="APPLICATIONFOLDER" Name="SearchBox">
+
+            <Component Id="Binary" Guid="*" Win64="yes">
+              <File
+                Id="SearchBoxEXE"
+                Name="searchbox.exe"
+                DiskId="1"
+                Source="$(var.CargoTargetBinDir)\searchbox.exe"
+                KeyPath="yes"/>
+            </Component>
+
+            <Component Id="MeiliSidecar" Guid="*" Win64="yes">
+              <File
+                Id="MeilisearchEXE"
+                Name="meilisearch.exe"
+                DiskId="1"
+                Source="wix\payload\meilisearch.exe"
+                KeyPath="yes"/>
+            </Component>
+
+            <Component Id="License" Guid="*" Win64="yes">
+              <File
+                Id="LicenseFile"
+                Name="LICENSE.txt"
+                DiskId="1"
+                Source="LICENSE"
+                KeyPath="yes"/>
+            </Component>
+
+          </Directory>
+        </Directory>
+      </Directory>
+
+      <!-- Start Menu shortcut. Registry value is required as the
+           KeyPath for a user-profile component per WiX rules. -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="SearchBox">
+          <Component Id="StartMenuShortcut" Guid="A0A5D0DB-8E62-4C6F-9A66-2C5D57D8F8A2">
+            <Shortcut
+              Id="SearchBoxStartMenu"
+              Name="SearchBox"
+              Description="Private, local-first document search"
+              Target="[APPLICATIONFOLDER]searchbox.exe"
+              WorkingDirectory="APPLICATIONFOLDER"
+              Icon="ProductICO"/>
+            <RemoveFolder Id="CleanupApplicationProgramsFolder" On="uninstall"/>
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\SourceBox\SearchBox"
+              Name="installed"
+              Type="integer"
+              Value="1"
+              KeyPath="yes"/>
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Desktop shortcut. Same KeyPath rule — HKCU registry value. -->
+      <Directory Id="DesktopFolder" Name="Desktop">
+        <Component Id="DesktopShortcut" Guid="B1C2D3E4-F5A6-4B5C-8D7E-9F0A1B2C3D4E">
+          <Shortcut
+            Id="SearchBoxDesktop"
+            Name="SearchBox"
+            Description="Private, local-first document search"
+            Target="[APPLICATIONFOLDER]searchbox.exe"
+            WorkingDirectory="APPLICATIONFOLDER"
+            Icon="ProductICO"/>
+          <RegistryValue
+            Root="HKCU"
+            Key="Software\SourceBox\SearchBox"
+            Name="desktop_shortcut"
+            Type="integer"
+            Value="1"
+            KeyPath="yes"/>
+        </Component>
+      </Directory>
+    </Directory>
+
+    <Feature
+      Id="Complete"
+      Title="SearchBox"
+      Description="The SearchBox application, bundled Meilisearch sidecar, and Start Menu + desktop shortcuts."
+      Level="1"
+      ConfigurableDirectory="APPLICATIONFOLDER">
+      <ComponentRef Id="Binary"/>
+      <ComponentRef Id="MeiliSidecar"/>
+      <ComponentRef Id="License"/>
+      <ComponentRef Id="StartMenuShortcut"/>
+      <ComponentRef Id="DesktopShortcut"/>
+    </Feature>
+
+    <!-- "Launch SearchBox" checkbox wired into the Finish dialog.
+         WixShellExec uses the Windows shell to resolve the .exe in its
+         install dir (carrying over the right working directory). -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1"/>
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch SearchBox"/>
+    <Property Id="WixShellExecTarget" Value="[#SearchBoxEXE]"/>
+    <CustomAction
+      Id="LaunchApplication"
+      BinaryKey="WixCA"
+      DllEntry="WixShellExec"
+      Impersonate="yes"/>
+
+    <!-- Classic Welcome → License → InstallDir → Verify → Progress → Finish.
+         We override the ExitDialog's Finish button to run the launch CA
+         when the checkbox is checked. -->
+    <UI>
+      <UIRef Id="WixUI_InstallDir"/>
+      <Publish
+        Dialog="ExitDialog"
+        Control="Finish"
+        Event="DoAction"
+        Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+    <Property Id="WIXUI_INSTALLDIR" Value="APPLICATIONFOLDER"/>
+    <WixVariable Id="WixUILicenseRtf" Value="wix\License.rtf"/>
+  </Product>
+</Wix>

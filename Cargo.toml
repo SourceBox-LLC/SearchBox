@@ -1,0 +1,100 @@
+[package]
+name = "searchbox"
+version = "0.1.3"
+edition = "2021"
+description = "SearchBox — local-first document search server"
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "trace"] }
+
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "sqlite",
+    "chrono",
+    "macros",
+    "migrate",
+] }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+minijinja = { version = "2", features = ["loader"] }
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+
+anyhow = "1"
+thiserror = "2"
+dotenvy = "0.15"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+tower-sessions = "0.14"
+tower-sessions-sqlx-store = { version = "0.15", features = ["sqlite"] }
+argon2 = "0.5"
+password-hash = { version = "0.5", features = ["std"] }
+rand = "0.8"
+time = "0.3"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+aes-gcm = "0.10"
+hex = "0.4"
+
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "multipart", "cookies"] }
+bytes = "1"
+futures = "0.3"
+dashmap = "6"
+urlencoding = "2"
+
+# Document extraction (pure-Rust replacement for the C++ doc_extractor).
+pdf-extract = "0.7"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.36"
+pulldown-cmark = { version = "0.12", default-features = false }
+scraper = "0.20"
+calamine = "0.26"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff"] }
+encoding_rs = "0.8"
+
+# Embed templates/ and static/ into the release binary so deploys are a
+# single executable. In debug builds rust-embed reads from disk, so edits
+# are live without rebuilding.
+rust-embed = { version = "8", default-features = false, features = ["interpolate-folder-path", "include-exclude"] }
+mime_guess = "2"
+
+# Windows-only at the build script level (see build.rs). Keeping it in
+# [build-dependencies] means non-Windows builds don't even pull it.
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+# System tray icon — Windows release-only UX surface. Without this the user
+# has no way to quit the app: closing the browser tab leaves the axum +
+# meilisearch processes running. tao is the event loop that hosts the
+# tray's hidden message-pump window (same crate tray-icon itself uses
+# internally; pinning to a matching version avoids muda duplication).
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.19"
+tao = "0.30"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# Windows MSI build (cargo-wix). Invoked indirectly by `wix\build.ps1`.
+# `main.wxs` lives in the repo; cargo-wix passes Cargo's version in as
+# $(var.Version), so bumping `package.version` above is the only knob
+# the installer version tracks.
+[package.metadata.wix]
+name = "SearchBox"
+product-name = "SearchBox"
+manufacturer = "SourceBox LLC"
+upgrade-guid = "9B4E2E71-7B51-4E3E-9D6B-2C41FA8B8F1B"
+path-guid = "C6B7D6C0-5A09-4B4B-9C62-8B8F5C1F5E2D"
+license = false
+eula = false

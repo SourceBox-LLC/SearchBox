@@ -156,7 +156,7 @@
     {% endif %}
 
     <form class="setup-form" method="POST" action="/setup">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       
       <div class="form-group">
         <label class="form-label" for="email">Email</label>
@@ -233,6 +233,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmPassword = document.getElementById('confirm_password');
   
   form.addEventListener('submit', function() {
+    // Validate passwords match before submission
+    if (password.value !== confirmPassword.value) {
+      confirmPassword.setCustomValidity('Passwords do not match');
+      confirmPassword.reportValidity();
+      return false;
+    }
+    
     submitBtn.disabled = true;
     submitBtn.textContent = 'Creating Account...';
   });

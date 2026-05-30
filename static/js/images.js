@@ -50,10 +50,10 @@
         const searchOptions = {
           limit: 50, // More images per page for gallery view
           offset: (page - 1) * 50,
-          filter: 'has_images = true',
+          filter: 'is_image = true',
           attributesToHighlight: ['filename', 'content']
         };
-        
+
         const searchResults = await documentsIndex.search(query, searchOptions);
         const images = collectImagesFromResults(searchResults.hits);
         
@@ -80,44 +80,25 @@
       }
     }
 
-    // Collect images from results (reuse existing function)
+    // Collect images from results. One thumbnail per image doc — the
+    // Rust backend writes a single 256-px JPEG at /api/thumbnail/{id}.
     function collectImagesFromResults(results) {
+      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif'];
       const allImages = [];
-      
       results.forEach(result => {
-        if (result.has_images && result.all_images && result.all_images.length > 0) {
-          result.all_images.forEach((imagePath, index) => {
-            // Use medium thumbnails for better quality in gallery
-            const mediumImagePath = imagePath.includes('.jpg')
-              ? imagePath.replace('_small.jpg', '_medium.jpg')
-              : imagePath.replace('_small.webp', '_medium.webp');
-            
-            // Determine if this is a PDF page, DOCX image, or Markdown image
-            const isPdfPage = imagePath.includes('_page_');
-            const isMarkdownImage = imagePath.includes('_markdown_');
-            let imageIndex;
-            
-            if (isPdfPage) {
-              imageIndex = parseInt(imagePath.match(/_page_(\d+)_/)[1]) + 1;
-            } else if (isMarkdownImage) {
-              imageIndex = parseInt(imagePath.match(/_markdown_(\d+)_/)[1]) + 1;
-            } else {
-              imageIndex = index + 1; // DOCX images
-            }
-            
-            allImages.push({
-              src: mediumImagePath,
-              docId: result.id,
-              docName: result.filename,
-              docType: result.file_type || result.fileType,
-              imageIndex: imageIndex,
-              isPdfPage: isPdfPage,
-              isMarkdownImage: isMarkdownImage
-            });
-          });
-        }
+        const ft = (result.file_type || result.fileType || '').toLowerCase();
+        const isImage = result.is_image === true || imageExts.includes(ft);
+        if (!isImage) return;
+        allImages.push({
+          src: `/api/thumbnail/${result.id}`,
+          docId: result.id,
+          docName: result.filename,
+          docType: ft,
+          imageIndex: 1,
+          isPdfPage: false,
+          isMarkdownImage: false,
+        });
       });
-      
       return allImages;
     }
 
@@ -174,22 +155,12 @@
 
       modalImage.style.opacity = '0';
 
-      let modalImageSrc = image.src;
-      if (modalImageSrc.includes('.jpg')) {
-        if (modalImageSrc.includes('_small.jpg')) modalImageSrc = modalImageSrc.replace('_small.jpg', '_modal.jpg');
-        else if (modalImageSrc.includes('_medium.jpg')) modalImageSrc = modalImageSrc.replace('_medium.jpg', '_modal.jpg');
-        else if (modalImageSrc.includes('_large.jpg')) modalImageSrc = modalImageSrc.replace('_large.jpg', '_modal.jpg');
-      } else {
-        if (modalImageSrc.includes('_small.webp')) modalImageSrc = modalImageSrc.replace('_small.webp', '_modal.webp');
-        else if (modalImageSrc.includes('_medium.webp')) modalImageSrc = modalImageSrc.replace('_medium.webp', '_modal.webp');
-        else if (modalImageSrc.includes('_large.webp')) modalImageSrc = modalImageSrc.replace('_large.webp', '_modal.webp');
-      }
-      modalImage.src = modalImageSrc;
-      modalImage.alt = `${image.docName} - ${image.isPdfPage ? 'Page' : 'Image'} ${image.imageIndex}`;
+      modalImage.src = image.src;
+      modalImage.alt = `${image.docName} - Image ${image.imageIndex}`;
 
       modalTitle.textContent = image.docName;
       modalFileType.textContent = (image.docType || '').toUpperCase().replace('.', '');
-      modalImageNumber.textContent = `${image.isPdfPage ? 'Page' : 'Image'} ${image.imageIndex}`;
+      modalImageNumber.textContent = `Image ${image.imageIndex}`;
 
       modalImage.onload = () => {
         modalImage.style.transition = 'opacity 0.3s ease';
@@ -197,17 +168,6 @@
       };
 
       modalImage.onerror = () => {
-        let fallbackSrc = modalImage.src;
-        if (fallbackSrc.includes('.jpg')) {
-          if (fallbackSrc.includes('_modal.jpg')) fallbackSrc = fallbackSrc.replace('_modal.jpg', '_large.jpg');
-          else if (fallbackSrc.includes('_large.jpg')) fallbackSrc = fallbackSrc.replace('_large.jpg', '_medium.jpg');
-          else if (fallbackSrc.includes('_medium.jpg')) fallbackSrc = fallbackSrc.replace('_medium.jpg', '_small.jpg');
-        } else {
-          if (fallbackSrc.includes('_modal.webp')) fallbackSrc = fallbackSrc.replace('_modal.webp', '_large.webp');
-          else if (fallbackSrc.includes('_large.webp')) fallbackSrc = fallbackSrc.replace('_large.webp', '_medium.webp');
-          else if (fallbackSrc.includes('_medium.webp')) fallbackSrc = fallbackSrc.replace('_medium.webp', '_small.webp');
-        }
-        modalImage.src = fallbackSrc;
         modalImage.style.opacity = '1';
       };
     }

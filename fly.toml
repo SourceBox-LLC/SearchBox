@@ -1,0 +1,64 @@
+# Fly.io deployment config for SearchBox (Rust).
+
+app = "searchbox"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SEARCHBOX_HOST = "0.0.0.0"
+  SEARCHBOX_PORT = "8080"
+
+[deploy]
+  strategy = "rolling"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+  [[services.ports]]
+    force_https = true
+    handlers = ["http"]
+    port = 80
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+
+  [[services.tcp_checks]]
+    grace_period = "10s"
+    interval = "15s"
+    restart_limit = 0
+    timeout = "2s"
+
+  [[services.http_checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    protocol = "http"
+    restart_limit = 0
+    timeout = "5s"
+    [services.http_checks.headers]
+      User-Agent = "Fly-Health-Check"
+
+[[mounts]]
+  source = "searchbox_data"
+  destination = "/app/vault"
+  initial_size = "10gb"
+
+[[mounts]]
+  source = "searchbox_meili"
+  destination = "/app/meili_data"
+  initial_size = "5gb"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024

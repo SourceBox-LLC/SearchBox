@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}SearchBox{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,21 +19,22 @@
       fetch('/api/auth/status')
         .then(response => response.json())
         .then(data => {
-          if (data.setup_required && !window.location.pathname.startsWith('/setup')) {
-            window.location.href = '/setup';
+          const path = window.location.pathname;
+          
+          if (data.setup_required) {
+            if (!path.startsWith('/setup')) {
+              window.location.href = '/setup';
+            }
           } else if (!data.authenticated) {
-            const protectedPages = ['/', '/settings', '/view', '/explore', '/images'];
-            const isProtected = protectedPages.some(p => window.location.pathname.startsWith(p));
-            if (isProtected) {
+            if (path !== '/' && path !== '/login' && path !== '/landing' && !path.startsWith('/setup')) {
               window.location.href = '/login';
             }
           }
         })
         .catch(err => {
           console.error('Failed to check auth status:', err);
-          const protectedPages = ['/', '/settings', '/view', '/explore', '/images'];
-          const isProtected = protectedPages.some(p => window.location.pathname.startsWith(p));
-          if (isProtected) {
+          const path = window.location.pathname;
+          if (path !== '/' && path !== '/login' && path !== '/landing' && !path.startsWith('/setup')) {
             window.location.href = '/login';
           }
         });

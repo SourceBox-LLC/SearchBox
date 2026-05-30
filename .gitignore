@@ -1,16 +1,9 @@
-# Python
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-
-# Virtual environment
-.venv/
+/target
 
 # Database
 searchbox.db
+searchbox.db-shm
+searchbox.db-wal
 instance/
 
 # Meilisearch data
@@ -22,9 +15,27 @@ vault/
 # Generated thumbnails
 static/thumbnails/
 
-# Migration leftovers (safe to delete)
-*.migrated
-*.outdated
-
 # IDE
 .windsurf/
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code (local state)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Env
+.env
+
+# WiX MSI build artifacts. `wix\main.wxs`, `wix\build.ps1`, and
+# `wix\make-icon.ps1` are checked in; everything else under wix\ is
+# produced at package time.
+/wix/payload/
+/wix/License.rtf
+/wix/assets/
+/wix/*.wixobj
+/wix/*.wixpdb

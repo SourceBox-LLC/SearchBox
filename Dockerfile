@@ -1,143 +1,67 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (c) 2026 SourceBox LLC
-#
-# This file is part of SearchBox.
-# SearchBox is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# SearchBox is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with SearchBox. If not, see <https://www.gnu.org/licenses/>.
 
-# ── Stage 1: Compile C++ document extractor ──
-# Must use bookworm (same glibc as runtime) for binary compatibility
-FROM debian:bookworm AS cpp-builder
+# ── Stage 1: Build the Rust binary ──
+FROM rust:1.88-slim-bookworm AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
     pkg-config \
-    libmupdf-dev \
-    libmujs-dev \
-    libgumbo-dev \
-    libjbig2dec-dev \
-    libharfbuzz-dev \
-    libfreetype-dev \
-    libopenjp2-7-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libzip-dev \
-    libpugixml-dev \
-    libzim-dev \
-    librsvg2-dev \
-    libcairo2-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY extractor/CMakeLists.txt .
-COPY extractor/src/ src/
-RUN mkdir out && cd out && cmake .. && make -j"$(nproc)"
+
+# Pre-cache deps before copying src/ so changes to source don't invalidate
+# the dependency layer.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir -p src \
+    && echo 'fn main() {}' > src/main.rs \
+    && cargo build --release \
+    && rm -rf src target/release/deps/searchbox* target/release/searchbox*
+
+# rust-embed bakes templates/ and static/ into the binary at build time,
+# so both dirs need to exist when `cargo build --release` runs.
+COPY src/ src/
+COPY schema.sql ./
+COPY templates/ templates/
+COPY static/ static/
+RUN touch src/main.rs && cargo build --release
 
 
-# ── Stage 2: Runtime image ──
-FROM ghcr.io/astral-sh/uv:python3.10-bookworm-slim
+# ── Stage 2: Runtime ──
+FROM debian:bookworm-slim
 
-# System dependencies for Pillow, PDF processing, health checks,
-# Meilisearch, and C++ extractor runtime libraries
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-    build-essential \
-    pkg-config \
-    libffi-dev \
-    libjpeg-dev \
-    libpng-dev \
-    zlib1g-dev \
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
-    libmupdf-dev \
-    libmujs-dev \
-    libgumbo-dev \
-    libzip-dev \
-    libpugixml-dev \
-    libharfbuzz-dev \
-    libfreetype-dev \
-    libopenjp2-7-dev \
-    libjbig2dec-dev \
-    libzim8 \
-    librsvg2-2 \
-    libcairo2 \
-    libcairo-gobject2 \
     && echo "deb [trusted=yes] https://apt.fury.io/meilisearch/ /" \
        > /etc/apt/sources.list.d/fury.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends meilisearch \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy compiled C++ extractor binary from builder stage
-COPY --from=cpp-builder /build/out/doc_extractor /usr/local/bin/doc_extractor
-
 WORKDIR /app
 
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock .python-version ./
-
-# Install dependencies into .venv (without the project itself)
-RUN uv sync --frozen --no-install-project --no-dev
-
-# Copy application source
-COPY app.py config.py models.py ./
-COPY routes/ routes/
-COPY services/ services/
-COPY utils/ utils/
-COPY static/ static/
-COPY templates/ templates/
-
-# Copy entrypoint
+# Single-binary runtime: the searchbox executable already contains every
+# template and every byte of static/ (rust-embed). We ship just the binary
+# plus the Meilisearch sidecar that was apt-installed above.
+COPY --from=builder /build/target/release/searchbox /usr/local/bin/searchbox
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-WORKDIR /app
-
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock .python-version ./
-
-# Install dependencies into .venv (without the project itself)
-RUN uv sync --frozen --no-install-project --no-dev
-
-# Copy application source
-COPY app.py config.py models.py ./
-COPY routes/ routes/
-COPY services/ services/
-COPY utils/ utils/
-COPY static/ static/
-COPY templates/ templates/
-
-# Copy entrypoint
-COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
-
-# Create runtime directories
-RUN mkdir -p vault static/thumbnails instance meili_data
-
-# Default environment
-ENV FLASK_SECRET_KEY=change-me-in-production \
-    MEILI_HOST=http://localhost \
+ENV SEARCHBOX_HOST=0.0.0.0 \
+    SEARCHBOX_PORT=8080 \
+    SEARCHBOX_DB_DIR=/app/instance \
+    SEARCHBOX_BASE_DIR=/app \
     MEILI_PORT=7700 \
     MEILI_MASTER_KEY=aSampleMasterKey \
-    MEILI_AUTO_START=false \
-    MEILI_DB_PATH=/app/meili_data \
-    SEARCHBOX_HOST=0.0.0.0 \
-    SEARCHBOX_PORT=5000 \
-    SEARCHBOX_DB_DIR=/app/instance \
-    PATH="/app/.venv/bin:$PATH"
+    MEILI_DB_PATH=/app/meili_data
 
-EXPOSE 5000
+EXPOSE 8080 7700
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fs http://localhost:8080/api/health || exit 1
 
 ENTRYPOINT ["./entrypoint.sh"]

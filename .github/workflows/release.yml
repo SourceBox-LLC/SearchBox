@@ -1,0 +1,153 @@
+# Build the Windows MSI installer and publish it to a GitHub Release on
+# every version tag (e.g. `git tag v1.0.0 && git push --tags`).
+# End users never touch PowerShell — they go to the Releases page and
+# download `SearchBox-<version>-x86_64.msi`.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Also allow manual dry-runs from the Actions tab — useful for
+  # verifying the pipeline without cutting a real release.
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to upload assets to the release
+
+jobs:
+  windows-msi:
+    name: Build Windows MSI
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable, x86_64-pc-windows-msvc)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      # WiX 3 ships on the GitHub-hosted Windows runner image, so we
+      # don't need to install it. `candle.exe` and `light.exe` come
+      # from `C:\Program Files (x86)\WiX Toolset v3.*\bin` which is
+      # already on PATH per the image docs:
+      # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
+      - name: Verify WiX toolset on PATH
+        shell: pwsh
+        run: |
+          candle.exe -? | Select-Object -First 1
+          light.exe -? | Select-Object -First 1
+
+      - name: Install cargo-wix
+        shell: pwsh
+        run: cargo install cargo-wix --locked
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      # Decode the optional code-signing certificate. When the
+      # `WINDOWS_CERT_BASE64` secret is unset (open-source fork with no
+      # cert), the step writes an empty `pfx` output and the subsequent
+      # sign steps skip via `if: steps.cert.outputs.pfx != ''`. With it
+      # set, a .pfx is written to a RUNNER_TEMP path that nothing else
+      # can read, and the cleanup step at the end scrubs it.
+      - name: Stage code-signing cert
+        id: cert
+        shell: pwsh
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:WINDOWS_CERT_BASE64)) {
+            Write-Host "WINDOWS_CERT_BASE64 not set — MSI will be unsigned"
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          "pfx=$pfx" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Build release binary
+        shell: pwsh
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      # Locate signtool.exe once — the Windows SDK version on the
+      # hosted runner image changes, so we find the newest bin dir
+      # dynamically rather than hardcoding a path.
+      - name: Find signtool
+        id: signtool
+        if: steps.cert.outputs.pfx != ''
+        shell: pwsh
+        run: |
+          $sdk = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $st = Get-ChildItem -Path $sdk -Filter 'signtool.exe' -Recurse `
+            | Where-Object { $_.FullName -match '\\x64\\' } `
+            | Sort-Object FullName -Descending `
+            | Select-Object -First 1
+          if ($null -eq $st) { throw "signtool.exe not found under $sdk" }
+          "path=$($st.FullName)" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      # Sign the .exe before it lands in the MSI so the installed
+      # binary carries our signature too, not just the wrapper.
+      - name: Sign searchbox.exe
+        if: steps.cert.outputs.pfx != ''
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          & "${{ steps.signtool.outputs.path }}" sign `
+            /f "${{ steps.cert.outputs.pfx }}" `
+            /p "$env:WINDOWS_CERT_PASSWORD" `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            target\x86_64-pc-windows-msvc\release\searchbox.exe
+
+      - name: Build MSI
+        shell: pwsh
+        # We already built (and possibly signed) searchbox.exe above —
+        # -SkipBuild tells the packaging script to reuse it rather than
+        # triggering a recompile that would unsign the binary.
+        run: .\wix\build.ps1 -SkipBuild
+
+      - name: Locate MSI artifact
+        id: find_msi
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Path target\wix -Filter '*.msi' | Select-Object -First 1
+          if ($null -eq $msi) { throw "No MSI produced under target\wix" }
+          "path=$($msi.FullName)" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "name=$($msi.Name)"     | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Sign MSI
+        if: steps.cert.outputs.pfx != ''
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          & "${{ steps.signtool.outputs.path }}" sign `
+            /f "${{ steps.cert.outputs.pfx }}" `
+            /p "$env:WINDOWS_CERT_PASSWORD" `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            "${{ steps.find_msi.outputs.path }}"
+
+      - name: Scrub cert from runner
+        if: always() && steps.cert.outputs.pfx != ''
+        shell: pwsh
+        run: Remove-Item -Force -ErrorAction SilentlyContinue "${{ steps.cert.outputs.pfx }}"
+
+      - name: Upload MSI to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: searchbox-msi
+          path: ${{ steps.find_msi.outputs.path }}
+          if-no-files-found: error
+
+      # Only publish to a Release when the trigger was a tag push.
+      # workflow_dispatch runs skip this step so manual dry-runs don't
+      # create junk releases.
+      - name: Attach MSI to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find_msi.outputs.path }}
+          draft: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true

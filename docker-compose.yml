@@ -1,13 +1,16 @@
 services:
   searchbox:
     build: .
+    image: sourcebox/searchbox:latest
+    container_name: searchbox
     ports:
-      - "5000:5000"
+      - "8080:8080"
       - "7700:7700"
     environment:
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-super-secret-change-me}
+      - SEARCHBOX_SECRET_KEY=${SEARCHBOX_SECRET_KEY:-change-me-in-production}
       - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-aSampleMasterKey}
-      - OLLAMA_URL=http://host.docker.internal:11434
+      # Ollama on the host; drop or override if you run it elsewhere.
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -15,10 +18,18 @@ services:
       - searchbox-vault:/app/vault
       - searchbox-thumbnails:/app/static/thumbnails
       - meili-data:/app/meili_data
+      # Mount the user's filesystems read-only so the indexer can see them.
+      # Override this on Windows with docker-compose.windows.yml.
       - /home:/home:ro
       - /mnt:/mnt:ro
       - /media:/media:ro
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   searchbox-data:

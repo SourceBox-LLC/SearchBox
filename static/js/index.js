@@ -446,7 +446,7 @@
 
     // Check system status on load and notify about issues
     async function checkSystemStatus() {
-      // Check Meilisearch connection via Flask API (works in Docker and locally)
+      // Check Meilisearch connection via the server API (works in Docker and locally)
       try {
         const resp = await fetch('/api/meilisearch/status');
         const data = await resp.json();
@@ -641,8 +641,8 @@
             if (SOURCE_FILTERS[type] !== undefined) {
               return `source = "${SOURCE_FILTERS[type]}"`;
             }
-            // Add dot prefix if not present (for consistency with backend storage)
-            const fileType = type.startsWith('.') ? type : `.${type}`;
+            // Backend stores file_type without a leading dot ("pdf", not ".pdf").
+            const fileType = type.replace(/^\./, '');
             return `file_type = "${fileType}"`;
           });
           let segmentFilter;
@@ -768,8 +768,8 @@
           }
           // Check for file type filter
           else if (parsedQuery.fileFilter){
-            // Add dot prefix if not present (for consistency with backend storage)
-            const fileType = parsedQuery.fileFilter.startsWith('.') ? parsedQuery.fileFilter : `.${parsedQuery.fileFilter}`;
+            // Backend stores file_type without a leading dot ("pdf", not ".pdf").
+            const fileType = parsedQuery.fileFilter.replace(/^\./, '');
             searchFilter = `file_type = "${fileType}"`;
           }
           searchQuery = parsedQuery.searchText === "*" ? "" : parsedQuery.searchText;
@@ -2509,48 +2509,27 @@
     const rightColumn = document.getElementById('right-column');
     const galleryImagesVertical = document.getElementById('gallery-images-vertical');
 
-    // Collect images from search results
+    // Collect images from search results.
+    // Rust backend emits one thumbnail per image doc (no per-page or
+    // per-embedded-image extraction yet) at /api/thumbnail/{id}. Docs
+    // carry `is_image` so we don't have to guess from the extension here.
     function collectImagesFromResults(results) {
+      const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'tiff', 'tif'];
       const allImages = [];
-      
-      console.log('DEBUG: collectImagesFromResults called with', results.length, 'results');
-      
       results.forEach(result => {
-        console.log('DEBUG: Processing result:', result.filename, 'has_images:', result.has_images, 'image_count:', result.image_count);
-        if (result.has_images && result.all_images && result.all_images.length > 0) {
-          result.all_images.forEach((imagePath, index) => {
-            // Use medium thumbnails for better quality in gallery
-            const mediumImagePath = imagePath.includes('.jpg')
-              ? imagePath.replace('_small.jpg', '_medium.jpg')
-              : imagePath.replace('_small.webp', '_medium.webp');
-            
-            // Determine if this is a PDF page, DOCX image, or Markdown image
-            const isPdfPage = imagePath.includes('_page_');
-            const isMarkdownImage = imagePath.includes('_markdown_');
-            let imageIndex;
-            
-            if (isPdfPage) {
-              imageIndex = parseInt(imagePath.match(/_page_(\d+)_/)[1]) + 1;
-            } else if (isMarkdownImage) {
-              imageIndex = parseInt(imagePath.match(/_markdown_(\d+)_/)[1]) + 1;
-            } else {
-              imageIndex = index + 1; // DOCX images
-            }
-            
-            allImages.push({
-              src: mediumImagePath,
-              docId: result.id,
-              docName: result.filename,
-              docType: result.fileType,
-              imageIndex: imageIndex,
-              isPdfPage: isPdfPage,
-              isMarkdownImage: isMarkdownImage
-            });
-          });
-        }
+        const ft = (result.file_type || result.fileType || '').toLowerCase();
+        const isImage = result.is_image === true || imageExts.includes(ft);
+        if (!isImage) return;
+        allImages.push({
+          src: `/api/thumbnail/${result.id}`,
+          docId: result.id,
+          docName: result.filename,
+          docType: ft,
+          imageIndex: 1,
+          isPdfPage: false,
+          isMarkdownImage: false,
+        });
       });
-      
-      console.log('DEBUG: Collected', allImages.length, 'images total');
       return allImages;
     }
 
@@ -2577,13 +2556,6 @@
         img.src = image.src;
         img.alt = `${image.docName} - Image ${index + 1}`;
         img.loading = 'lazy';
-        
-        // Fallback to small thumbnail if medium fails
-        img.onerror = () => {
-          img.src = image.src.includes('.jpg')
-            ? image.src.replace('_medium.jpg', '_small.jpg')
-            : image.src.replace('_medium.webp', '_small.webp');
-        };
 
         const overlay = document.createElement('div');
         overlay.className = 'gallery-image-overlay-vertical';
@@ -2643,47 +2615,23 @@
       
       // Add loading state to image
       modalImage.style.opacity = '0';
-      
-      // Use high-quality modal thumbnail - handle both small and medium sources
-      let modalImageSrc = image.src;
-      if (modalImageSrc.includes('.jpg')) {
-        if (modalImageSrc.includes('_small.jpg')) modalImageSrc = modalImageSrc.replace('_small.jpg', '_modal.jpg');
-        else if (modalImageSrc.includes('_medium.jpg')) modalImageSrc = modalImageSrc.replace('_medium.jpg', '_modal.jpg');
-        else if (modalImageSrc.includes('_large.jpg')) modalImageSrc = modalImageSrc.replace('_large.jpg', '_modal.jpg');
-      } else {
-        if (modalImageSrc.includes('_small.webp')) modalImageSrc = modalImageSrc.replace('_small.webp', '_modal.webp');
-        else if (modalImageSrc.includes('_medium.webp')) modalImageSrc = modalImageSrc.replace('_medium.webp', '_modal.webp');
-        else if (modalImageSrc.includes('_large.webp')) modalImageSrc = modalImageSrc.replace('_large.webp', '_modal.webp');
-      }
-      modalImage.src = modalImageSrc;
-      modalImage.alt = `${image.docName} - ${image.isPdfPage ? 'Page' : image.isMarkdownImage ? 'Image' : 'Image'} ${image.imageIndex}`;
-      
-      // Set text content immediately
+
+      // Single-thumbnail backend — the gallery src IS the modal src.
+      modalImage.src = image.src;
+      modalImage.alt = `${image.docName} - Image ${image.imageIndex}`;
+
       modalTitle.textContent = image.docName;
-      modalFileType.textContent = image.docType.toUpperCase();
-      modalImageNumber.textContent = `${image.isPdfPage ? 'Page' : image.isMarkdownImage ? 'Image' : 'Image'} ${image.imageIndex}`;
-      
-      // Handle image load
+      modalFileType.textContent = (image.docType || '').toUpperCase();
+      modalImageNumber.textContent = `Image ${image.imageIndex}`;
+
       modalImage.onload = () => {
         modalImage.style.transition = 'opacity 0.3s ease';
         modalImage.style.opacity = '1';
       };
-      
+
       modalImage.onerror = () => {
-        // Smart fallback: try large, then medium, then small
-        let fallbackSrc = modalImage.src;
-        if (fallbackSrc.includes('.jpg')) {
-          if (fallbackSrc.includes('_modal.jpg')) fallbackSrc = fallbackSrc.replace('_modal.jpg', '_large.jpg');
-          else if (fallbackSrc.includes('_large.jpg')) fallbackSrc = fallbackSrc.replace('_large.jpg', '_medium.jpg');
-          else if (fallbackSrc.includes('_medium.jpg')) fallbackSrc = fallbackSrc.replace('_medium.jpg', '_small.jpg');
-        } else {
-          if (fallbackSrc.includes('_modal.webp')) fallbackSrc = fallbackSrc.replace('_modal.webp', '_large.webp');
-          else if (fallbackSrc.includes('_large.webp')) fallbackSrc = fallbackSrc.replace('_large.webp', '_medium.webp');
-          else if (fallbackSrc.includes('_medium.webp')) fallbackSrc = fallbackSrc.replace('_medium.webp', '_small.webp');
-        }
-        modalImage.src = fallbackSrc;
         modalImage.style.opacity = '1';
-        console.error('Failed to load modal thumbnail, falling back to:', fallbackSrc);
+        console.error('Failed to load modal thumbnail for', image.docId);
       };
     }
 
