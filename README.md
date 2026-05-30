@@ -9,7 +9,9 @@ on your own computer. Nothing is uploaded, tracked, or sent anywhere.
 
 Free, open source, and yours to keep.
 
-> 📷 _Screenshot: the SearchBox home window — see [`docs/screenshots`](docs/screenshots) to add one._
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="SearchBox home screen — a single search bar over a clean, dark interface with Search Documents, Search Images, and Explore options" width="760">
+</p>
 
 ---
 
