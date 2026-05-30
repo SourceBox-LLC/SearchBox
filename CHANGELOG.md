@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-05-30
+
 ### Fixed
 - **Search filters and the document viewer now work.** Filters like `::pdf`,
   `::docx`, and `::image` were silently matching nothing, and PDFs / Word docs
