@@ -154,6 +154,7 @@ async fn summary(
     let prompt = build_prompt(&body.query, &body.results);
     let resp = o.generate(&prompt).await?;
     Ok(Json(json!({
+        "success": true,
         "summary": resp,
         "citations": body.results.iter().take(5).collect::<Vec<_>>(),
     })))

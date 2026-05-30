@@ -3544,7 +3544,7 @@
         console.log('Streaming response headers:', response.headers);
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status_code}: ${response.statusText}`);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
         const reader = response.body.getReader();
