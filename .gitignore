@@ -19,6 +19,9 @@ static/thumbnails/
 # Runtime logs
 /log/
 
+# WebView2 profile/cache (created under the data dir at runtime)
+/webview2/
+
 # IDE
 .windsurf/
 .idea/

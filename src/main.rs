@@ -60,6 +60,19 @@ fn main() -> Result<()> {
     std::fs::create_dir_all(&config.thumbnails_dir).context("ensure thumbnails dir")?;
     std::fs::create_dir_all(&config.log_dir).context("ensure log dir")?;
 
+    // WebView2 (the Windows desktop window) stores its profile/cache in a
+    // "user data folder". Its default is next to the .exe, which is read-only
+    // when installed under Program Files (the MSI) — WebView2 then fails with
+    // 0x80070005 (access denied) and the window never opens. Redirect it to a
+    // per-user writable dir. Must be set before the WebView is created and
+    // before we spawn any threads.
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    {
+        let wv_dir = config.base_dir.join("webview2");
+        let _ = std::fs::create_dir_all(&wv_dir);
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &wv_dir);
+    }
+
     // Rotating daily log file at <base_dir>/log/searchbox.log. The
     // `_log_guard` binding MUST outlive main() — dropping it flushes
     // buffered writes, so we hold it here for the process lifetime.

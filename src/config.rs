@@ -12,6 +12,10 @@ pub struct Config {
     pub host: String,
     pub port: u16,
 
+    /// Root for the writable runtime dirs (vault/, meili_data/, log/, webview2/).
+    /// Only read on Windows release builds (to site the WebView2 data folder).
+    #[allow(dead_code)]
+    pub base_dir: PathBuf,
     pub db_dir: PathBuf,
     pub vault_dir: PathBuf,
     pub meili_data_dir: PathBuf,
@@ -59,6 +63,7 @@ impl Config {
                 .ok()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(8080),
+            base_dir,
             db_dir,
             vault_dir,
             meili_data_dir,

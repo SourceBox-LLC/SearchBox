@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.1 — 2026-05-30
+
+### Fixed
+- **The installed app now launches.** Installed via the MSI (under
+  `Program Files`), the desktop window failed to open: WebView2 tried to put
+  its data folder next to the read-only executable and errored with
+  `0x80070005` (access denied), so the app shut itself down on start. Its data
+  folder is now redirected to a writable per-user location
+  (`%LocalAppData%\SearchBox\webview2`).
+
 ## 0.2.0 — 2026-05-30
 
 ### Fixed
