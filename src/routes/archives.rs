@@ -64,18 +64,13 @@ async fn index_archive(
             "unsupported archive type '.{ext}' (supported: .zip, .zim)"
         )));
     }
-    if ext == "zim" {
-        return Err(AppError::NotImplemented(
-            "ZIM indexing is coming next — .zip archives work now".into(),
-        ));
-    }
     let stem = archive
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("archive")
         .to_string();
     let dest = archives_root(&state).join(&stem);
-    let source = "zip";
+    let source = if ext == "zim" { "zim" } else { "zip" };
 
     let job_id = JobRegistry::new_id();
     let mut job = JobStatus::new(job_id.clone());
@@ -229,11 +224,106 @@ fn extract_zip(archive: &StdPath, dest: &StdPath) -> Result<()> {
     Ok(())
 }
 
-fn extract_zim(_archive: &StdPath, _dest: &StdPath) -> Result<()> {
-    // TODO(zim): use the `zim` crate to write every article out to an HTML file
-    // under `dest`, then the folder indexer picks them up automatically.
-    // Pending validation of the crate against a real (zstd) ZIM file.
-    Err(anyhow!(
-        "ZIM extraction isn't wired up yet — ZIP archives work today; ZIM is the next step"
-    ))
+/// Write every HTML article in the ZIM out as a `.html` file under `dest`, so
+/// the folder indexer treats the archive like a folder of web pages. Filtering
+/// by MIME (`text/html`) is namespace-scheme agnostic (old `A`, new `C`).
+/// Images / CSS / metadata are skipped — articles are searchable + viewable;
+/// their in-page relative assets won't resolve (same limit as any indexed .html).
+fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
+    use zim::{MimeType, Target, Zim};
+
+    let z = Zim::new(archive).map_err(|e| anyhow!("open zim: {e}"))?;
+
+    // Pass 1: collect each HTML article's (url, cluster, blob).
+    let mut items: Vec<(String, u32, u32)> = Vec::new();
+    for entry in z.iterate_by_urls() {
+        let is_html = matches!(&entry.mime_type, MimeType::Type(t) if t.starts_with("text/html"));
+        if !is_html {
+            continue;
+        }
+        if let Some(Target::Cluster(cluster, blob)) = entry.target {
+            items.push((entry.url, cluster, blob));
+        }
+    }
+    if items.is_empty() {
+        return Err(anyhow!(
+            "no HTML articles found in this ZIM (unsupported layout or empty archive)"
+        ));
+    }
+
+    // Group by cluster so each cluster is decompressed only once.
+    items.sort_by_key(|item| item.1);
+
+    let mut written = 0usize;
+    let mut i = 0;
+    while i < items.len() {
+        let cluster_idx = items[i].1;
+        match z.get_cluster(cluster_idx) {
+            Ok(cluster) => {
+                while i < items.len() && items[i].1 == cluster_idx {
+                    let url = items[i].0.clone();
+                    let blob = items[i].2;
+                    i += 1;
+                    let bytes = match cluster.get_blob(blob) {
+                        Ok(b) => b.to_vec(),
+                        Err(_) => continue,
+                    };
+                    let outpath = dest.join(zim_article_path(&url));
+                    if let Some(parent) = outpath.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::fs::write(&outpath, &bytes)?;
+                    written += 1;
+                }
+            }
+            // A cluster we can't read/decompress (e.g. legacy bzip2/zlib) skips
+            // its whole group rather than aborting the entire extraction.
+            Err(_) => {
+                while i < items.len() && items[i].1 == cluster_idx {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    if written == 0 {
+        return Err(anyhow!("could not extract any articles from this ZIM"));
+    }
+    tracing::info!("extracted {written} ZIM articles to {}", dest.display());
+    Ok(())
+}
+
+/// Turn a ZIM entry URL into a safe, `.html`-suffixed relative path (drops `..`
+/// traversal and Windows-invalid characters).
+fn zim_article_path(url: &str) -> PathBuf {
+    let mut path = PathBuf::new();
+    for comp in url.split('/') {
+        if comp.is_empty() || comp == "." || comp == ".." {
+            continue;
+        }
+        let safe: String = comp
+            .chars()
+            .map(|c| match c {
+                '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\\' => '_',
+                c if (c as u32) < 0x20 => '_',
+                c => c,
+            })
+            .collect();
+        path.push(safe);
+    }
+    if path.as_os_str().is_empty() {
+        return PathBuf::from("index.html");
+    }
+    let has_html_ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| matches!(e.to_ascii_lowercase().as_str(), "html" | "htm"))
+        .unwrap_or(false);
+    if has_html_ext {
+        path
+    } else {
+        let mut s = path.into_os_string();
+        s.push(".html");
+        PathBuf::from(s)
+    }
 }

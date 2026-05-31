@@ -1,6 +1,6 @@
 [package]
 name = "searchbox"
-version = "0.2.5"
+version = "0.2.6"
 edition = "2021"
 description = "SearchBox — local-first document search server"
 license = "AGPL-3.0-or-later"
@@ -60,6 +60,11 @@ scraper = "0.20"
 calamine = "0.26"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif", "tiff"] }
 encoding_rs = "0.8"
+
+# ZIM archive reading (Kiwix/Wikipedia). Pure-Rust reader; note it pulls in
+# C-backed zstd-sys + lzma-sys (vendored, compiled via `cc`) for cluster
+# decompression — the one place we lean on compiled-C deps, unavoidable for ZIM.
+zim = "0.4"
 
 # Embed templates/ and static/ into the release binary so deploys are a
 # single executable. In debug builds rust-embed reads from disk, so edits

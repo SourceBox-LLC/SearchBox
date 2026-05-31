@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.2.6 — 2026-05-30
+
+### Added
+- **ZIM archive indexing now works** (the v0.2.5 "coming next" is here). Point
+  SearchBox at a `.zim` file — Kiwix, Wikipedia, or any openZIM archive — and
+  it extracts every HTML article and indexes them like a folder: full-text
+  searchable and viewable as pages, just like any other content. Both modern
+  (zstd) and legacy (xz) compression are supported. Validated against a real
+  2024 Wikipedia ZIM (~3,800 articles extracted cleanly).
+
+### Notes
+- ZIM articles are unpacked to disk under the app's data folder, so a large
+  archive needs proportional free space. Article text and structure render in
+  the viewer; embedded images and inter-article links don't resolve yet (a
+  follow-up — same limitation as any indexed `.html`).
+
 ## 0.2.5 — 2026-05-30
 
 ### Added

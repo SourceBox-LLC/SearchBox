@@ -16,9 +16,6 @@ pub enum AppError {
     #[error("{0}")]
     Unauthorized(String),
 
-    #[error("{0}")]
-    NotImplemented(String),
-
     #[error(transparent)]
     Internal(#[from] anyhow::Error),
 }
@@ -29,7 +26,6 @@ impl AppError {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-            Self::NotImplemented(_) => StatusCode::NOT_IMPLEMENTED,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
