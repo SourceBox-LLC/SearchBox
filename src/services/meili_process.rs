@@ -49,26 +49,30 @@ impl MeiliSupervisor {
 
         std::fs::create_dir_all(&data_path).context("create meili data dir")?;
 
-        let child = Command::new(&bin)
-            .args([
-                "--http-addr",
-                &format!("0.0.0.0:{port}"),
-                "--master-key",
-                &master,
-                "--db-path",
-            ])
-            .arg(&data_path)
-            .args(["--no-analytics"])
-            // Run with a writable working directory. A child inherits
-            // searchbox's cwd, which under a Program Files (MSI) install is
-            // read-only — Meilisearch then fails at startup creating its
-            // relative dump/snapshot dirs with "Access is denied (os error 5)"
-            // and exits immediately. Point cwd at the (writable) data dir.
-            .current_dir(&data_path)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .context("spawn meilisearch")?;
+        let mut cmd = Command::new(&bin);
+        cmd.args([
+            "--http-addr",
+            &format!("0.0.0.0:{port}"),
+            "--master-key",
+            &master,
+            "--db-path",
+        ])
+        .arg(&data_path)
+        .args(["--no-analytics"])
+        // Run with a writable working directory. A child inherits searchbox's
+        // cwd, which under a Program Files (MSI) install is read-only —
+        // Meilisearch then fails at startup creating its relative dump/snapshot
+        // dirs with "Access is denied (os error 5)" and exits. Point cwd at the
+        // (writable) data dir.
+        .current_dir(&data_path)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+        // searchbox is a GUI (windows_subsystem) app; spawning the
+        // console-subsystem Meilisearch would otherwise pop a visible terminal
+        // window. CREATE_NO_WINDOW (0x08000000) runs it without one.
+        #[cfg(windows)]
+        cmd.creation_flags(0x0800_0000);
+        let child = cmd.spawn().context("spawn meilisearch")?;
         *guard = Some(child);
         tracing::info!(port = %port, "started meilisearch");
         Ok(())

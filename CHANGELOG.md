@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-05-30
+
+### Fixed
+- **No more stray terminal window.** A black console window appeared next to
+  the app on launch — it was the bundled Meilisearch engine's own console
+  (newly visible because v0.2.2 made the engine stay running). The engine is
+  now spawned with `CREATE_NO_WINDOW`, so it runs invisibly in the background.
+
 ## 0.2.2 — 2026-05-30
 
 ### Fixed
