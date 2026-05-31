@@ -43,7 +43,9 @@ The easy way — no setup, no technical steps:
 SearchBox opens in its own window, just like any normal app. **Close the
 window to quit; reopen it from the Start menu whenever you like.**
 
-> 📷 _Screenshot: the app open from the Start menu._
+<p align="center">
+  <img src="docs/screenshots/searchboxWindowsLookupSnip.png" alt="Launching SearchBox from the Windows Start menu" width="680">
+</p>
 
 Runs on **Windows 10 and 11**. *(On Windows 10 you may be asked once to
 install Microsoft's free "WebView2" component — it's a quick automatic
