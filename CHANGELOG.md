@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.2.7 — 2026-05-30
+
+### Added
+- **ZIM articles now render fully — images, styling, and clickable links.**
+  Opening a Wikipedia/Kiwix article in the viewer now serves it and its images,
+  CSS, and inter-article links on-demand straight from the source `.zim`, so you
+  can browse the archive like an offline mini-Wikipedia: pages keep their
+  original look, images load, and clicking a link opens the next article in
+  place. It renders in a locked-down, no-JavaScript sandbox, so it stays safe.
+
+### Notes
+- Serving is on-demand — nothing extra is unpacked to disk and the search index
+  stays clean (still only article text is indexed). Articles are matched by
+  filename, so the rare title containing filesystem-reserved characters falls
+  back to plain text. Very old ZIMs using bzip2/zlib cluster compression remain
+  unsupported (modern zstd/xz work).
+
 ## 0.2.6 — 2026-05-30
 
 ### Added

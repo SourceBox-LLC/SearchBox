@@ -390,25 +390,44 @@ let documentData = null;
       }
     }
 
-    // Render an indexed .html/.htm file as an actual page, inside a sandboxed
-    // iframe. No `allow-scripts`, so the page's own JS can't run; `allow-same-
-    // origin` lets us read the iframe doc to auto-size it and catch link clicks.
-    // (Relative assets like local images/CSS won't resolve — known limitation.)
+    // Render an indexed .html/.htm file as an actual page in a sandboxed iframe.
+    // No `allow-scripts`, so the page's own JS can't run; `allow-same-origin`
+    // lets us read the iframe doc to auto-size it and intercept link clicks.
+    // ZIM articles are served on-demand from the source .zim — with images, CSS,
+    // and working inter-article links — via /api/zim/content/<archive>/<url>
+    // (the response carries an injected <base href>). A plain .html/.htm file
+    // falls back to its raw markup (its relative assets won't resolve).
     async function loadHtml() {
       const host = document.getElementById('html-content');
       if (!host) return;
-      try {
-        const resp = await fetch(`/api/html/${docId}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const html = await resp.text();
 
+      // For a ZIM doc, derive the on-demand content URL from the file path:
+      //   …/archives/<archive>/<article>.html  ->  /api/zim/content/<archive>/<article>
+      let zimSrc = null;
+      if (documentData.source === 'zim') {
+        const fp = (documentData.file_path || '').replace(/\\/g, '/');
+        const m = fp.match(/\/archives\/([^/]+)\/(.+?)\.html?$/i);
+        if (m) {
+          const seg = m[2].split('/').map(encodeURIComponent).join('/');
+          zimSrc = `/api/zim/content/${encodeURIComponent(m[1])}/${seg}`;
+        }
+      }
+
+      try {
         const iframe = document.createElement('iframe');
         iframe.sandbox = 'allow-same-origin';
         iframe.style.cssText = 'width:100%; border:none; min-height:600px; background:#fff; border-radius:8px;';
-        iframe.srcdoc = html;
+        if (zimSrc) {
+          iframe.src = zimSrc;
+        } else {
+          const resp = await fetch(`/api/html/${docId}`);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          iframe.srcdoc = await resp.text();
+        }
         host.innerHTML = '';
         host.appendChild(iframe);
 
+        // Fires again on every in-iframe navigation (e.g. clicking a ZIM link).
         iframe.addEventListener('load', () => {
           try {
             const idoc = iframe.contentDocument;
@@ -416,7 +435,8 @@ let documentData = null;
             const fit = () => { iframe.style.height = idoc.documentElement.scrollHeight + 'px'; };
             fit();
             new ResizeObserver(fit).observe(idoc.body);
-            // External links open in a new tab; don't let navigation hijack the app frame.
+            // External links open in a new tab; internal (relative) links are left
+            // alone so the iframe browses the archive via the injected <base href>.
             idoc.addEventListener('click', (e) => {
               const link = e.target.closest('a');
               if (!link) return;

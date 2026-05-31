@@ -8,8 +8,10 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use anyhow::{anyhow, Result};
-use axum::extract::{Query, State};
-use axum::response::Json;
+use axum::body::Body;
+use axum::extract::{Path, Query, State};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::{Json, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
@@ -29,6 +31,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/archive/status", get(archive_status))
         .route("/api/archive/list", get(list_archives))
         .route("/api/archive/remove", post(remove_archive))
+        .route("/api/zim/content/{archive}/{*path}", get(serve_zim_content))
 }
 
 /// Extracted archives live under `<base_dir>/archives/<name>/`.
@@ -172,6 +175,8 @@ async fn remove_archive(
     if dir.exists() {
         std::fs::remove_dir_all(&dir).map_err(|e| AppError::Internal(e.into()))?;
     }
+    // Remove the ZIM source sidecar too (no-op for ZIP archives).
+    let _ = std::fs::remove_file(PathBuf::from(format!("{}.zimsource", dir.display())));
     // Purge the indexed docs whose file_path is under that directory.
     let mut deletion_task: Option<Value> = None;
     if let Ok(m) = Meili::from_settings(&state.db).await {
@@ -188,6 +193,132 @@ async fn remove_archive(
     Ok(Json(
         json!({ "success": true, "deletion_task": deletion_task }),
     ))
+}
+
+// ── ZIM on-demand serving ───────────────────────────────────────────────────
+
+/// Serve one entry (article, image, stylesheet, …) straight out of the source
+/// `.zim` of an extracted archive. HTML responses get a `<base href>` injected
+/// so the article's relative images / CSS / inter-article links all resolve back
+/// through this same endpoint — turning the viewer iframe into a little offline
+/// browser. Scripts are blocked (CSP here + the iframe `sandbox`).
+async fn serve_zim_content(
+    State(state): State<AppState>,
+    _: CurrentUser,
+    Path((archive, url)): Path<(String, String)>,
+) -> AppResult<Response> {
+    if archive.is_empty()
+        || archive.contains("..")
+        || archive.contains('/')
+        || archive.contains('\\')
+    {
+        return Err(AppError::BadRequest("invalid archive".into()));
+    }
+    let archive_dir = archives_root(&state).join(&archive);
+    let sidecar = PathBuf::from(format!("{}.zimsource", archive_dir.display()));
+    let zim_path = std::fs::read_to_string(&sidecar)
+        .map_err(|_| AppError::NotFound("not a ZIM archive".into()))?
+        .trim()
+        .to_string();
+
+    let archive_for_base = archive.clone();
+    let (mime, bytes) =
+        task::spawn_blocking(move || resolve_zim(&zim_path, &url, &archive_for_base))
+            .await
+            .map_err(|e| AppError::Internal(anyhow!("zim task: {e}")))?
+            .map_err(AppError::Internal)?;
+
+    let ct = HeaderValue::from_str(&mime)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    let mut resp = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, ct)
+        .body(Body::from(bytes))
+        .map_err(|e| AppError::Internal(anyhow!("build response: {e}")))?;
+    if mime.starts_with("text/html") {
+        resp.headers_mut().insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("script-src 'none'; object-src 'none'"),
+        );
+    }
+    Ok(resp)
+}
+
+/// Open `zim_path`, find the entry named `url` (following redirects), and return
+/// `(mime, bytes)`. HTML gets a `<base href>` pointing back at the content
+/// endpoint injected so relative references resolve.
+fn resolve_zim(zim_path: &str, url: &str, archive: &str) -> Result<(String, Vec<u8>)> {
+    use zim::{MimeType, Target, Zim};
+
+    let z = Zim::new(zim_path).map_err(|e| anyhow!("open zim: {e}"))?;
+
+    let mut target = None;
+    let mut mime = None;
+    for e in z.iterate_by_urls() {
+        if e.url == url {
+            target = e.target;
+            mime = Some(e.mime_type);
+            break;
+        }
+    }
+    let mut target = target.ok_or_else(|| anyhow!("not found in zim: {url}"))?;
+    let mut mime = mime.unwrap_or_else(|| MimeType::Type("application/octet-stream".into()));
+
+    // Alternate titles are redirect entries pointing at the canonical article.
+    let mut hops = 0;
+    while let Target::Redirect(idx) = target {
+        let e = z
+            .get_by_url_index(idx)
+            .map_err(|e| anyhow!("redirect: {e}"))?;
+        mime = e.mime_type;
+        target = e
+            .target
+            .ok_or_else(|| anyhow!("redirect target has no content"))?;
+        hops += 1;
+        if hops > 8 {
+            return Err(anyhow!("redirect loop for {url}"));
+        }
+    }
+    let (cluster, blob) = match target {
+        Target::Cluster(c, b) => (c, b),
+        Target::Redirect(_) => return Err(anyhow!("unresolved redirect for {url}")),
+    };
+    let bytes = z
+        .get_cluster(cluster)
+        .map_err(|e| anyhow!("cluster {cluster}: {e}"))?
+        .get_blob(blob)
+        .map_err(|e| anyhow!("blob: {e}"))?
+        .to_vec();
+
+    let mime_str = match mime {
+        MimeType::Type(t) => t,
+        _ => "application/octet-stream".to_string(),
+    };
+    if mime_str.starts_with("text/html") {
+        let base = format!("/api/zim/content/{}/", urlencoding::encode(archive));
+        return Ok((mime_str, inject_base_href(&bytes, &base)));
+    }
+    Ok((mime_str, bytes))
+}
+
+/// Insert `<base href="…">` right after the opening `<head>` tag.
+fn inject_base_href(html: &[u8], base: &str) -> Vec<u8> {
+    let s = String::from_utf8_lossy(html);
+    let tag = format!("<base href=\"{base}\">");
+    if let Some(hpos) = s.find("<head") {
+        if let Some(gt) = s[hpos..].find('>') {
+            let at = hpos + gt + 1;
+            let mut out = String::with_capacity(s.len() + tag.len());
+            out.push_str(&s[..at]);
+            out.push_str(&tag);
+            out.push_str(&s[at..]);
+            return out.into_bytes();
+        }
+    }
+    let mut out = String::with_capacity(s.len() + tag.len());
+    out.push_str(&tag);
+    out.push_str(&s);
+    out.into_bytes()
 }
 
 // ── Extraction ─────────────────────────────────────────────────────────────
@@ -226,9 +357,10 @@ fn extract_zip(archive: &StdPath, dest: &StdPath) -> Result<()> {
 
 /// Write every HTML article in the ZIM out as a `.html` file under `dest`, so
 /// the folder indexer treats the archive like a folder of web pages. Filtering
-/// by MIME (`text/html`) is namespace-scheme agnostic (old `A`, new `C`).
-/// Images / CSS / metadata are skipped — articles are searchable + viewable;
-/// their in-page relative assets won't resolve (same limit as any indexed .html).
+/// by MIME (`text/html`) is namespace-scheme agnostic (old `A`, new `C`). Only
+/// articles are extracted (images/CSS stay in the .zim, keeping the search index
+/// clean); the viewer serves an article's images/CSS/links on-demand from the
+/// source archive (`serve_zim_content`), located via a `.zimsource` sidecar.
 fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
     use zim::{MimeType, Target, Zim};
 
@@ -289,6 +421,13 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
     if written == 0 {
         return Err(anyhow!("could not extract any articles from this ZIM"));
     }
+    // Record the source .zim path next to the extracted dir so the viewer can
+    // serve each article's images / CSS / links on-demand (serve_zim_content).
+    let abs = std::fs::canonicalize(archive).unwrap_or_else(|_| archive.to_path_buf());
+    let sidecar = PathBuf::from(format!("{}.zimsource", dest.display()));
+    if let Err(e) = std::fs::write(&sidecar, abs.to_string_lossy().as_bytes()) {
+        tracing::warn!("zim sidecar write failed ({}): {e}", sidecar.display());
+    }
     tracing::info!("extracted {written} ZIM articles to {}", dest.display());
     Ok(())
 }
@@ -325,5 +464,52 @@ fn zim_article_path(url: &str) -> PathBuf {
         let mut s = path.into_os_string();
         s.push(".html");
         PathBuf::from(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_href_inserted_after_head() {
+        let html = b"<!DOCTYPE html><html><head>\n<title>x</title></head><body>hi</body></html>";
+        let s = String::from_utf8(inject_base_href(html, "/api/zim/content/a/")).unwrap();
+        assert!(s.contains("<head><base href=\"/api/zim/content/a/\">"));
+        assert!(s.find("<base").unwrap() < s.find("<title>").unwrap());
+        assert!(s.contains("<body>hi</body>"));
+    }
+
+    #[test]
+    fn base_href_handles_head_attributes() {
+        let s = String::from_utf8(inject_base_href(b"<head lang=\"en\">z", "/c/")).unwrap();
+        assert_eq!(s, "<head lang=\"en\"><base href=\"/c/\">z");
+    }
+
+    #[test]
+    fn base_href_prepends_when_no_head() {
+        let s = String::from_utf8(inject_base_href(b"<p>x</p>", "/b/")).unwrap();
+        assert_eq!(s, "<base href=\"/b/\"><p>x</p>");
+    }
+
+    #[test]
+    fn article_path_adds_html_and_sanitizes() {
+        assert_eq!(
+            zim_article_path("Albert_Einstein"),
+            PathBuf::from("Albert_Einstein.html")
+        );
+        // literal '%' in the URL is preserved (round-trips through the endpoint)
+        assert_eq!(
+            zim_article_path("100%_renewable"),
+            PathBuf::from("100%_renewable.html")
+        );
+        // an existing .html extension is kept (not doubled)
+        assert_eq!(zim_article_path("page.html"), PathBuf::from("page.html"));
+        // `..` traversal components are dropped
+        assert_eq!(
+            zim_article_path("../../secret"),
+            PathBuf::from("secret.html")
+        );
+        assert_eq!(zim_article_path(""), PathBuf::from("index.html"));
     }
 }
