@@ -263,8 +263,7 @@ async fn generate_recovery_key(
     let kek = crypto::kek_from_hex(kek_hex)?;
 
     let recovery_dek = crypto::generate_recovery_key();
-    let wrapped_recovery_dek =
-        crypto::wrap_dek(&kek, &recovery_dek).map_err(AppError::Internal)?;
+    let wrapped_recovery_dek = crypto::wrap_dek(&kek, &recovery_dek).map_err(AppError::Internal)?;
 
     RecoveryKey::upsert(&state.db, &wrapped_recovery_dek)
         .await
