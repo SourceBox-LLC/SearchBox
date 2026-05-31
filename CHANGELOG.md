@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 0.2.4 — 2026-05-30
+
+### Fixed
+- **The document-manager panel no longer crashes.** Opening the upload /
+  manage-documents panel threw a JavaScript error (a `const` was reassigned).
+- **The Vault file list, delete, and folder-sync now work.** The list read the
+  wrong field of the search response (always empty), delete used the wrong URL
+  (405 — nothing was removed), and folder-sync reported a false failure.
+- **Explore "Sort by Name"** no longer errors (`filename` is now sortable).
+- **Password changes are atomic** — the vault re-encryption and the new
+  password commit together, so an interruption can't leave the vault in an
+  unrecoverable split state.
+- **Factory reset is best-effort** — one locked file no longer aborts the wipe
+  and strands the rest on disk.
+- A **relative Meilisearch data path** is rejected (it would resolve into
+  read-only Program Files and stop the engine from starting).
+- No console-window flash when opening or revealing a file in its default app.
+
+### Changed
+- CI/release workflows opt into Node 24 (Node 20 runner deprecation).
+
 ## 0.2.3 — 2026-05-30
 
 ### Fixed

@@ -134,7 +134,7 @@ impl Meili {
             "searchableAttributes": ["filename", "content", "original_filename"],
             "displayedAttributes":  ["*"],
             "filterableAttributes": ["file_type", "source", "torrent_hash", "archive_path", "has_images", "is_image"],
-            "sortableAttributes":   ["uploaded_at", "indexed_at", "file_size"],
+            "sortableAttributes":   ["filename", "uploaded_at", "indexed_at", "file_size"],
         });
         let resp = self
             .http
@@ -330,6 +330,14 @@ pub async fn apply_config_patch(pool: &SqlitePool, patch: ConfigPatch) -> Result
                     "meilisearch_path basename must contain 'meilisearch'"
                 ));
             }
+        }
+    }
+    // The Meilisearch data path must be absolute. A relative path resolves
+    // against searchbox's cwd, which under a Program Files (MSI) install is
+    // read-only — Meilisearch would fail to start there.
+    if let Some(p) = patch.data_path.as_ref() {
+        if !p.is_empty() && !std::path::Path::new(p).is_absolute() {
+            return Err(anyhow!("data_path must be an absolute path"));
         }
     }
 

@@ -381,10 +381,16 @@ async fn resolve_disk_path(state: &AppState, doc_id: &str) -> AppResult<PathBuf>
 
 fn os_open(p: &StdPath) -> AppResult<()> {
     #[cfg(target_os = "windows")]
-    let cmd = std::process::Command::new("cmd")
-        .args(["/C", "start", ""])
-        .arg(p)
-        .spawn();
+    let cmd = {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW (0x08000000): don't flash a console window for the
+        // `cmd /C start` helper that hands the file to its default app.
+        std::process::Command::new("cmd")
+            .args(["/C", "start", ""])
+            .arg(p)
+            .creation_flags(0x0800_0000)
+            .spawn()
+    };
     #[cfg(target_os = "macos")]
     let cmd = std::process::Command::new("open").arg(p).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]

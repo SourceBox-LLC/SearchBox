@@ -307,13 +307,24 @@ fn wipe_dir(p: &StdPath) -> std::io::Result<()> {
     if !p.exists() {
         return Ok(());
     }
+    // Best-effort: one locked/in-use file (common on Windows) must not abort
+    // the whole wipe and strand the rest on disk after the DB rows are already
+    // gone. Log and keep going.
     for entry in std::fs::read_dir(p)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            std::fs::remove_dir_all(&path)?;
+        let path = match entry {
+            Ok(e) => e.path(),
+            Err(e) => {
+                tracing::warn!("factory reset: unreadable entry in {}: {e}", p.display());
+                continue;
+            }
+        };
+        let res = if path.is_dir() {
+            std::fs::remove_dir_all(&path)
         } else {
-            std::fs::remove_file(&path)?;
+            std::fs::remove_file(&path)
+        };
+        if let Err(e) = res {
+            tracing::warn!("factory reset: could not remove {}: {e}", path.display());
         }
     }
     Ok(())

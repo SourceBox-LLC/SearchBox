@@ -208,24 +208,46 @@ async fn change_password(
         return Err(AppError::Unauthorized("current password incorrect".into()));
     }
 
-    // Rewrap every encrypted file's DEK under the new KEK so the vault
-    // survives password changes. The salt is stable — only the KEK changes.
+    // Rewrap every encrypted file's DEK under the new KEK and update the
+    // password hash ATOMICALLY. If a crash (or one bad row) interrupted this
+    // mid-loop, the vault would be split — some files under the new KEK, some
+    // under the old, with the stored hash matching neither — and unrecoverable.
+    // The salt is stable; only the KEK changes.
+    let new_hash = hash_password(&form.new_password)?;
     let new_kek_hex = if let Some(cfg) = VaultConfig::get(&state.db).await? {
         let old_kek = crypto::derive_kek(&form.current_password, &cfg.salt);
         let new_kek = crypto::derive_kek(&form.new_password, &cfg.salt);
-        for f in EncryptedFile::all(&state.db).await? {
+        let files = EncryptedFile::all(&state.db).await?;
+        let mut tx = state
+            .db
+            .begin()
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+        for f in files {
             let dek = crypto::unwrap_dek(&old_kek, &f.wrapped_dek)
                 .map_err(|e| AppError::Internal(e.context("rewrap DEK")))?;
             let rewrapped = crypto::wrap_dek(&new_kek, &dek).map_err(AppError::Internal)?;
-            EncryptedFile::update_wrapped_dek(&state.db, &f.doc_id, &rewrapped).await?;
+            sqlx::query("UPDATE encrypted_files SET wrapped_dek = ? WHERE doc_id = ?")
+                .bind(&rewrapped)
+                .bind(&f.doc_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| AppError::Internal(e.into()))?;
         }
+        sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+            .bind(&new_hash)
+            .bind(user.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+        tx.commit()
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
         Some(hex::encode(new_kek))
     } else {
+        User::update_password_hash(&state.db, user.id, &new_hash).await?;
         None
     };
-
-    let new_hash = hash_password(&form.new_password)?;
-    User::update_password_hash(&state.db, user.id, &new_hash).await?;
 
     // Refresh the session's KEK so the current tab can keep serving vault docs.
     if new_kek_hex.is_some() {

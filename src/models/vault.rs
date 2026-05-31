@@ -110,17 +110,4 @@ impl EncryptedFile {
             .await?;
         Ok(())
     }
-
-    pub async fn update_wrapped_dek(
-        pool: &SqlitePool,
-        doc_id: &str,
-        wrapped_dek: &[u8],
-    ) -> Result<()> {
-        sqlx::query("UPDATE encrypted_files SET wrapped_dek = ? WHERE doc_id = ?")
-            .bind(wrapped_dek)
-            .bind(doc_id)
-            .execute(pool)
-            .await?;
-        Ok(())
-    }
 }

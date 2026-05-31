@@ -1394,7 +1394,6 @@
         const response = await fetch('/api/vault/status');
         const data = await response.json();
         // Show documents section directly - no PIN required
-        vaultReady = document.getElementById('vault-ready');
         if (vaultReady) {
           vaultReady.style.display = 'block';
         }
@@ -1660,27 +1659,15 @@
         const data = await response.json();
 
         if (data.success) {
-          const results = data.results;
-          let statusMessage = `Sync complete! `;
-          
-          if (results.added > 0) {
-            statusMessage += `Added ${results.added} new files. `;
-          }
-          if (results.updated > 0) {
-            statusMessage += `Updated ${results.updated} files. `;
-          }
-          if (results.skipped > 0) {
-            statusMessage += `Skipped ${results.skipped} files. `;
-          }
-          
-          if (results.errors.length > 0) {
-            statusMessage += `${results.errors.length} errors occurred.`;
-            console.error('Sync errors:', results.errors);
-          }
-          
-          syncStatus.textContent = statusMessage;
+          // /api/folders/sync is fire-and-forget: it kicks off a background
+          // re-index per folder and returns the job ids. Indexing progress
+          // streams via the per-job status endpoint, not this response.
+          const jobIds = data.job_ids || [];
+          syncStatus.textContent = jobIds.length > 0
+            ? `Re-indexing ${jobIds.length} folder${jobIds.length === 1 ? '' : 's'} in the background…`
+            : 'No connected folders to sync.';
           syncStatus.className = 'sync-status success';
-          
+
           // Save last sync time
           const now = new Date().toISOString();
           authFetch('/api/settings/last-sync-time', {
@@ -1689,25 +1676,15 @@
             body: JSON.stringify({ timestamp: now })
           }).catch(e => console.error('Failed to save sync time:', e));
           updateLastSynced(now);
-          
-          // Show detailed results
-          if (results.processed_files.length > 0) {
-            console.log('Processed files:', results.processed_files);
-          }
-          
+
           // Refresh connected folders list and documents
           loadConnectedFolders();
           loadDocuments();
-          
-          const added = results.added || 0;
-          const updated = results.updated || 0;
-          const errCount = results.errors ? results.errors.length : 0;
-          if (errCount > 0) {
-            addNotification('warning', 'Sync Complete with Errors', `Added ${added}, updated ${updated} files. ${errCount} error(s) occurred.`);
-          } else if (added > 0 || updated > 0) {
-            addNotification('success', 'Sync Complete', `Added ${added} new, updated ${updated} files.`);
+
+          if (jobIds.length > 0) {
+            addNotification('success', 'Sync Started', `Re-indexing ${jobIds.length} folder${jobIds.length === 1 ? '' : 's'} in the background.`);
           } else {
-            addNotification('info', 'Sync Complete', 'All folders are up to date — no changes found.', false);
+            addNotification('info', 'Nothing to Sync', 'No connected folders found.', false);
           }
         } else {
           syncStatus.textContent = data.error || 'Sync failed';
@@ -2301,7 +2278,7 @@
     // Remove file (delete from backend)
     window.removeFile = async function(docId) {
       try {
-        const response = await authFetch(`/api/documents/${docId}`, {
+        const response = await authFetch(`/api/document/${docId}`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -2389,6 +2366,9 @@
         const response = await fetch('/api/documents');
         const data = await response.json();
         console.log('Documents response:', data);
+        // /api/documents proxies Meilisearch, which returns { results: [...] };
+        // normalize to the `documents` shape the rest of this function expects.
+        if (data && !Array.isArray(data.documents)) data.documents = data.results || [];
         
         if (response.ok) {
           console.log('All documents:', data.documents);

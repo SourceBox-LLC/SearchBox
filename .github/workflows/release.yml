@@ -5,6 +5,11 @@
 
 name: release
 
+# Run JavaScript actions on Node 24; Node 20 is deprecated on GitHub-hosted
+# runners (forced to Node 24 from 2026-06-16).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 on:
   push:
     tags:
