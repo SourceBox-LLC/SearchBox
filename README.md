@@ -91,11 +91,12 @@ Power users can also combine filters with `::&&` (and), `::||` (or), and
   phoning home.
 - **Your vault is encrypted** with your password using strong encryption
   (AES-256). Files in the vault can't be read without it.
-- **There's no password recovery.** That's the trade-off for real privacy: if
-  you forget your password, the encrypted vault files **cannot** be recovered.
-  Keep your password somewhere safe.
+- **Recovery key for password reset.** During setup, you'll download a recovery
+  key — save it somewhere safe. If you forget your password, the recovery key
+  lets you reset it and keep accessing your vault. Without the recovery key,
+  vault files **cannot** be recovered.
 
-Curious about the details? See [SECURITY.md](SECURITY.md).
+Curious about the details? See [SECURITY.md](SECURITY.md) for encryption details and recovery key guidance.
 
 ---
 

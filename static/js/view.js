@@ -77,6 +77,7 @@ let documentData = null;
       const config = getFileTypeConfig(documentData.filename);
       const isMarkdown = documentData.file_type === 'md';
       const isZim = documentData.file_type === 'zim';
+      const isHtml = documentData.file_type === 'html' || documentData.file_type === 'htm';
       
       // Add image detection
       if (documentData.is_image) {
@@ -163,7 +164,9 @@ let documentData = null;
                   </div>
                 </div>
               ` : `
-                ${isMarkdown ? `
+                ${isHtml ? `
+                  <div class="html-viewer" id="html-content"><div class="html-loading" style="text-align:center; padding:40px; color:#8b949e;">Loading page...</div></div>
+                ` : isMarkdown ? `
                   <div class="markdown-content">${marked.parse(documentData.content || 'No content available')}</div>
                 ` : `
                   <pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>
@@ -244,6 +247,8 @@ let documentData = null;
           </div>
         </aside>
       `;
+
+      if (isHtml) loadHtml();
     }
 
     async function renderZimArticle() {
@@ -382,6 +387,52 @@ let documentData = null;
         // No ZIM path info, show indexed text
         document.getElementById('document-content').innerHTML = `
           <pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>`;
+      }
+    }
+
+    // Render an indexed .html/.htm file as an actual page, inside a sandboxed
+    // iframe. No `allow-scripts`, so the page's own JS can't run; `allow-same-
+    // origin` lets us read the iframe doc to auto-size it and catch link clicks.
+    // (Relative assets like local images/CSS won't resolve — known limitation.)
+    async function loadHtml() {
+      const host = document.getElementById('html-content');
+      if (!host) return;
+      try {
+        const resp = await fetch(`/api/html/${docId}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const html = await resp.text();
+
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = 'allow-same-origin';
+        iframe.style.cssText = 'width:100%; border:none; min-height:600px; background:#fff; border-radius:8px;';
+        iframe.srcdoc = html;
+        host.innerHTML = '';
+        host.appendChild(iframe);
+
+        iframe.addEventListener('load', () => {
+          try {
+            const idoc = iframe.contentDocument;
+            if (!idoc) return;
+            const fit = () => { iframe.style.height = idoc.documentElement.scrollHeight + 'px'; };
+            fit();
+            new ResizeObserver(fit).observe(idoc.body);
+            // External links open in a new tab; don't let navigation hijack the app frame.
+            idoc.addEventListener('click', (e) => {
+              const link = e.target.closest('a');
+              if (!link) return;
+              const href = link.getAttribute('href') || '';
+              if (/^https?:/i.test(href)) {
+                e.preventDefault();
+                window.open(href, '_blank', 'noopener');
+              }
+            });
+          } catch (err) {
+            console.warn('Could not access HTML iframe content:', err);
+          }
+        });
+      } catch (e) {
+        console.error('Error loading HTML page:', e);
+        host.innerHTML = `<pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>`;
       }
     }
 

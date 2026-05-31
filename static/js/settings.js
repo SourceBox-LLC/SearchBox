@@ -1,5 +1,20 @@
 /* SearchBox — Settings page logic */
 
+// Download recovery key helper
+function downloadRecoveryKey(key) {
+  const blob = new Blob([key], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'searchbox-recovery-key.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  document.getElementById('recovery-key-modal').style.display = 'none';
+  showToast('Recovery key downloaded! Save it in a secure location.', 'success');
+}
+
 // Toast notification function
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -116,6 +131,53 @@ if (passwordSubmitBtn) {
       }
     } catch (e) {
       passwordError.textContent = 'Error connecting to server';
+    }
+  });
+}
+
+// ── Recovery Key ───────────────────────────────────────────────────────────
+
+const generateRecoveryKeyBtn = document.getElementById('generate-recovery-key-btn');
+
+if (generateRecoveryKeyBtn) {
+  generateRecoveryKeyBtn.addEventListener('click', async () => {
+    generateRecoveryKeyBtn.disabled = true;
+    generateRecoveryKeyBtn.textContent = 'Generating...';
+    
+    try {
+      const resp = await authFetch('/api/settings/generate-recovery-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      const data = await resp.json();
+      
+      if (resp.ok) {
+        // Download recovery key as file
+        const blob = new Blob([data.recovery_key], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'searchbox-recovery-key.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('Recovery key downloaded! Save it in a secure location.', 'success');
+      } else {
+        showToast(data.error || 'Failed to generate recovery key', 'error');
+      }
+    } catch (e) {
+      showToast('Error connecting to server', 'error');
+    } finally {
+      generateRecoveryKeyBtn.disabled = false;
+      generateRecoveryKeyBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+        </svg>
+        Generate Recovery Key
+      `;
     }
   });
 }

@@ -1872,7 +1872,7 @@
       _activeArchiveJobId = jobId;
       _archivePollingInterval = setInterval(async () => {
         try {
-          const resp = await fetch(`/api/zim/index/status?job_id=${jobId}`);
+          const resp = await fetch(`/api/archive/status?job_id=${jobId}`);
           const data = await resp.json();
 
           if (!data || data.error) {
@@ -1892,36 +1892,8 @@
     }
 
     async function checkForRunningArchiveJobs() {
-      try {
-        const resp = await fetch('/api/zim/index/status');
-        const data = await resp.json();
-        if (data.jobs) {
-          // First priority: find any running job and resume polling
-          for (const [jobId, job] of Object.entries(data.jobs)) {
-            if (job.status === 'running') {
-              _applyArchivePollingUI(job);
-              if (!_archivePollingInterval) {
-                startArchivePolling(jobId);
-              }
-              return;
-            }
-          }
-          // Second priority: show the most recent completed/failed job
-          let latestJob = null;
-          let latestId = null;
-          for (const [jobId, job] of Object.entries(data.jobs)) {
-            if (job.status === 'completed' || job.status === 'failed') {
-              latestJob = job;
-              latestId = jobId;
-            }
-          }
-          if (latestJob) {
-            _applyArchivePollingUI(latestJob);
-          }
-        }
-      } catch (e) {
-        console.error('Error checking archive jobs:', e);
-      }
+      // Archive jobs are polled by id (see startArchivePolling); there's no
+      // "list all jobs" endpoint, so resuming on page load is a no-op.
     }
 
     checkForRunningArchiveJobs();
@@ -1948,7 +1920,7 @@
       archiveStatus.textContent = 'Starting archive indexing...';
 
       try {
-        const response = await authFetch('/api/zim/index', {
+        const response = await authFetch('/api/archive/index', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: archivePath })
@@ -1981,7 +1953,7 @@
 
     async function loadIndexedArchives() {
       try {
-        const response = await fetch('/api/zim/indexed');
+        const response = await fetch('/api/archive/list');
         const data = await response.json();
 
         if (data.archives && data.archives.length > 0) {
@@ -1993,7 +1965,7 @@
                   <path d="M1 3h22v5H1z"></path>
                   <path d="M10 12h4"></path>
                 </svg>
-                <span>${a.name} <small style="color:#8b949e">(${a.type.toUpperCase()} · ${a.articles_indexed} items)</small></span>
+                <span>${a.name}</span>
               </div>
               <button class="connected-folder-remove" onclick="removeIndexedArchive('${a.path.replace(/'/g, "\\'")}')" title="Remove">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2048,19 +2020,19 @@
       showToast('info', 'Removing Archive', 'Deleting documents from index. This may take a moment...');
 
       try {
-        const response = await authFetch('/api/zim/remove', {
+        const response = await authFetch('/api/archive/remove', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: archivePath })
         });
 
         if (response.ok) {
-          const data = await response.json();
+          await response.json();
           archiveStatus.className = 'index-status success';
-          archiveStatus.textContent = `Removed ${data.documents_removed} documents from index`;
+          archiveStatus.textContent = 'Archive removed from index';
           loadIndexedArchives();
           loadDocuments();
-          addNotification('success', 'Archive Removed', `Removed ${data.documents_removed} documents from index`);
+          addNotification('success', 'Archive Removed', 'The archive and its documents were removed from the index.');
         } else {
           archiveStatus.className = 'index-status error';
           archiveStatus.textContent = 'Failed to remove archive from index';
@@ -2087,32 +2059,9 @@
     const archiveSyncStatus = document.getElementById('archive-sync-status');
     const archiveLastSynced = document.getElementById('archive-last-synced');
 
-    function updateArchiveLastSynced(timestamp) {
-      if (timestamp) {
-        archiveLastSynced.textContent = `Last synced: ${formatTimeAgo(timestamp)}`;
-        archiveLastSynced.className = 'last-synced';
-      } else {
-        archiveLastSynced.textContent = 'Never synced';
-        archiveLastSynced.className = 'last-synced never';
-      }
-    }
-
-    async function loadArchiveLastSynced() {
-      try {
-        const resp = await fetch('/api/settings/last-archive-sync-time');
-        const data = await resp.json();
-        if (data.last_archive_sync_time) {
-          updateArchiveLastSynced(data.last_archive_sync_time);
-        } else {
-          updateArchiveLastSynced(null);
-        }
-      } catch (e) {
-        updateArchiveLastSynced(null);
-      }
-    }
-
-    setInterval(loadArchiveLastSynced, 60000);
-    loadArchiveLastSynced();
+    // Indexed archives are static — there's no periodic sync, so no
+    // "last synced" timestamp to show.
+    if (archiveLastSynced) archiveLastSynced.textContent = '';
 
     syncArchivesBtn.addEventListener('click', async () => {
       try {
@@ -2129,54 +2078,11 @@
         if (syncIcon) syncIcon.style.opacity = '0';
         if (syncText) syncText.textContent = 'Syncing...';
 
-        showToast('info', 'Syncing Archives', 'Re-indexing all tracked archives. This may take a while...');
-
-        const response = await authFetch('/api/zim/sync', { method: 'POST' });
-        const data = await response.json();
-
-        if (data.success) {
-          const r = data.results;
-          let statusMessage = 'Sync complete! ';
-
-          if (r.synced > 0) {
-            statusMessage += `${r.synced} archive${r.synced > 1 ? 's' : ''} re-indexed. `;
-          }
-          if (r.skipped > 0) {
-            statusMessage += `${r.skipped} skipped. `;
-          }
-          if (r.failed > 0) {
-            statusMessage += `${r.failed} failed. `;
-          }
-          if (r.total === 0) {
-            statusMessage = 'No archives to sync.';
-          }
-
-          archiveSyncStatus.textContent = statusMessage;
-          archiveSyncStatus.className = 'sync-status success';
-
-          const now = new Date().toISOString();
-          authFetch('/api/settings/last-archive-sync-time', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ timestamp: now })
-          }).catch(e => console.error('Failed to save archive sync time:', e));
-          updateArchiveLastSynced(now);
-
-          loadIndexedArchives();
-          loadDocuments();
-
-          if (r.errors && r.errors.length > 0) {
-            addNotification('warning', 'Archive Sync Complete with Errors', `Synced ${r.synced} archives. ${r.errors.length} error(s).`);
-          } else if (r.synced > 0) {
-            addNotification('success', 'Archive Sync Complete', `Re-indexed ${r.synced} archive${r.synced > 1 ? 's' : ''}.`);
-          } else if (r.total > 0) {
-            addNotification('info', 'Archive Sync Complete', 'All archives are up to date.', false);
-          }
-        } else {
-          archiveSyncStatus.textContent = data.error || 'Sync failed';
-          archiveSyncStatus.className = 'sync-status error';
-          addNotification('error', 'Archive Sync Failed', data.error || 'Archive sync failed');
-        }
+        // Archives are static once extracted — there's nothing to re-sync.
+        // This just refreshes the indexed list so the panel is current.
+        await loadIndexedArchives();
+        archiveSyncStatus.textContent = 'Archive list refreshed.';
+        archiveSyncStatus.className = 'sync-status success';
       } catch (error) {
         archiveSyncStatus.textContent = 'Error: ' + error.message;
         archiveSyncStatus.className = 'sync-status error';

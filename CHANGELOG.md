@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## 0.2.5 — 2026-05-30
+
+### Added
+- **Index ZIP archives like folders.** Point SearchBox at a `.zip` file and it
+  unpacks it and indexes the contents, so every file inside becomes searchable
+  and viewable just like a normal indexed folder. (`.zim` archive support is
+  the next step — it reports a clear "coming soon" for now.)
+- **HTML files render as pages.** Indexed `.html` / `.htm` files now open as
+  actual rendered pages in the viewer — inside a locked-down, script-blocking
+  sandbox — instead of showing raw source text.
+- **Vault recovery key** — During setup, you now download a recovery key that
+  can reset your password. Save it somewhere safe — without it, password
+  recovery is impossible.
+- **Password reset flow** — Forgot your password? Use your recovery key to
+  reset it and keep accessing your vault. The recovery key is never stored
+  on disk, only wrapped under your password-derived key.
+- **Regenerate recovery key** — Settings page lets you generate a new recovery
+  key at any time (invalidates the old one).
+
+### Changed
+- **README & SECURITY.md** — Updated to reflect the recovery key system and
+  clarify that password recovery is possible with the recovery key.
+
 ## 0.2.4 — 2026-05-30
 
 ### Fixed

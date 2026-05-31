@@ -84,3 +84,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     folder      TEXT,
     started_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+CREATE TABLE IF NOT EXISTS recovery_key (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    wrapped_recovery_dek BLOB    NOT NULL,
+    created_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at          TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);

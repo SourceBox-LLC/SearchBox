@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tower_sessions::Session;
 
+use crate::error::{AppError, AppResult};
+
 pub const SESSION_USER_KEY: &str = "user";
 pub const CSRF_TOKEN_KEY: &str = "csrf_token";
 
@@ -128,6 +130,19 @@ pub async fn get_or_create_csrf_token(session: &Session) -> String {
     let token = generate_csrf_token();
     let _ = session.insert(CSRF_TOKEN_KEY, &token).await;
     token
+}
+
+/// Validate a CSRF token against the session
+pub async fn validate_csrf(session: &Session, token: &str) -> AppResult<()> {
+    let session_token: Option<String> = session
+        .get(CSRF_TOKEN_KEY)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    match session_token {
+        Some(st) if constant_time_eq(token, &st) => Ok(()),
+        _ => Err(AppError::BadRequest("invalid csrf token".into())),
+    }
 }
 
 pub struct AuthRejection {

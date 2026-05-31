@@ -99,6 +99,26 @@ pub fn kek_from_hex(hex_str: &str) -> Result<[u8; KEK_LEN]> {
         .map_err(|_| anyhow!("hex KEK wrong length"))
 }
 
+/// Generate a fresh random recovery key (32 bytes).
+/// This is the plaintext recovery key that the user saves.
+pub fn generate_recovery_key() -> [u8; DEK_LEN] {
+    generate_dek()
+}
+
+/// Encode a recovery key as hex for display/download.
+pub fn recovery_key_to_hex(key: &[u8; DEK_LEN]) -> String {
+    hex::encode(key)
+}
+
+/// Decode a hex-encoded recovery key.
+pub fn recovery_key_from_hex(hex_str: &str) -> Result<[u8; DEK_LEN]> {
+    let bytes = hex::decode(hex_str).map_err(|e| anyhow!("decode recovery key hex: {e}"))?;
+    bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| anyhow!("recovery key wrong length"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,5 +1,5 @@
 //! Document routes: `/api/document*`, `/api/documents`, `/api/upload`,
-//! `/api/thumbnail/<id>`, `/api/pdf/<id>`, `/api/docx/<id>`.
+//! `/api/thumbnail/<id>`, `/api/pdf/<id>`, `/api/docx/<id>`, `/api/html/<id>`.
 
 use std::path::{Path as StdPath, PathBuf};
 
@@ -34,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/thumbnail/{doc_id}", get(thumbnail))
         .route("/api/pdf/{doc_id}", get(serve_pdf))
         .route("/api/docx/{doc_id}", get(serve_docx))
+        .route("/api/html/{doc_id}", get(serve_html))
 }
 
 // ── Listing ───────────────────────────────────────────────────────────────
@@ -280,6 +281,25 @@ async fn serve_docx(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
     .await
+}
+
+/// Serve an indexed `.html`/`.htm` file as its raw markup so the viewer can
+/// render it as a page (in a script-blocking sandboxed iframe). The CSP header
+/// is defense-in-depth for anyone who navigates straight to this URL: it stops
+/// the page's own scripts/plugins from running in the app's origin.
+async fn serve_html(
+    State(state): State<AppState>,
+    user: CurrentUser,
+    Path(doc_id): Path<String>,
+) -> AppResult<Response> {
+    validate_doc_id(&doc_id)?;
+    let mut resp =
+        serve_encrypted_or_plain(&state, &user, &doc_id, "text/html; charset=utf-8").await?;
+    resp.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        header::HeaderValue::from_static("script-src 'none'; object-src 'none'"),
+    );
+    Ok(resp)
 }
 
 async fn serve_encrypted_or_plain(

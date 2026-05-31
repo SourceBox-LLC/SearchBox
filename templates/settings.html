@@ -52,6 +52,20 @@
           </div>
         </div>
 
+        <!-- Recovery Key -->
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Recovery Key</h3>
+            <p>Download your vault recovery key for password reset</p>
+          </div>
+          <button class="btn btn-secondary" id="generate-recovery-key-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+            </svg>
+            Generate Recovery Key
+          </button>
+        </div>
+
         <!-- Change Password -->
         <div class="settings-row" id="change-password-row">
           <div class="settings-info">
@@ -106,6 +120,42 @@
             </div>
           </div>
         </div>
+
+        <!-- Recovery Key Display Modal (shown after setup or generation) -->
+        {% if recovery_key %}
+        <div class="password-modal" id="recovery-key-modal" style="display: flex;">
+          <div class="password-modal-content" style="max-width: 500px;">
+            <h4>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2" style="vertical-align: middle; margin-right: 8px;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              Save Your Recovery Key
+            </h4>
+            <p style="color: #8b949e; font-size: 14px; margin-bottom: 16px;">
+              This recovery key can reset your password if you forget it. 
+              <strong>Download it now and store it securely</strong> — you cannot view it again.
+            </p>
+            <div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+              <code style="word-break: break-all; color: #f0f6fc; font-size: 13px;">{{ recovery_key }}</code>
+            </div>
+            <div class="password-actions">
+              <button class="btn btn-primary" onclick="downloadRecoveryKey('{{ recovery_key }}')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download Recovery Key
+              </button>
+              <button class="btn btn-secondary" onclick="document.getElementById('recovery-key-modal').style.display='none'">
+                I've Saved It
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </section>
 

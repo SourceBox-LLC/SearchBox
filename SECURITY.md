@@ -3,9 +3,10 @@
 > **In plain English:** SearchBox runs entirely on your own computer. It
 > doesn't send your files or activity anywhere, has no ads or tracking, and
 > works offline. Anything you put in the **vault** is encrypted with your
-> password — strong enough that the files can't be read without it. The
-> trade-off: **there's no password reset.** If you forget your password, the
-> vaulted files are gone for good, so keep it somewhere safe.
+> password — strong enough that the files can't be read without it. During
+> setup, you'll download a **recovery key** — save it somewhere safe. If you
+> forget your password, the recovery key lets you reset it and keep accessing
+> your vault. Without the recovery key, vault files **cannot** be recovered.
 >
 > The rest of this page is the technical detail and how to report a security
 > issue.
@@ -119,8 +120,17 @@ volumes:
 
 - Choose a strong admin password — it's the only thing between an
   attacker with filesystem access and the vault contents.
-- There is no recovery. Lose the password → lose the encrypted files.
+- **Save your recovery key.** During setup, SearchBox generates a random
+  256-bit recovery key and wraps it under your password-derived key. Store
+  this recovery key somewhere safe (password manager, encrypted USB, safe).
+- **Lost password + lost recovery key = lost vault.** The recovery key is
+  the only way to reset your password. Without it, vault files cannot be
+  recovered.
+- **Recovery key lifecycle:** The recovery key is generated once at setup.
+  It can be regenerated at any time from Settings (which invalidates the old
+  one). The recovery key is never stored on disk — only a version wrapped
+  under your password-derived KEK.
 
 ---
 
-**Last updated:** May 2026
+**Last updated:** May 2026 (v0.2.5 — recovery key password reset)

@@ -8,11 +8,13 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tower_sessions::Session;
 
 use crate::auth::{CsrfToken, CurrentUser};
 use crate::error::{AppError, AppResult};
-use crate::models::{Bookmark, Settings};
+use crate::models::{Bookmark, RecoveryKey, Settings, VaultConfig};
 use crate::state::AppState;
+use crate::vault::crypto;
 
 const MAX_HISTORY_SIZE: usize = 5;
 
@@ -37,6 +39,10 @@ pub fn routes() -> Router<AppState> {
             get(get_bookmarks_enabled).put(set_bookmarks_enabled),
         )
         .route("/api/settings/factory-reset", post(factory_reset))
+        .route(
+            "/api/settings/generate-recovery-key",
+            post(generate_recovery_key),
+        )
         .route("/api/bookmarks", get(list_bookmarks).post(upsert_bookmark))
         .route("/api/bookmarks/{slot}", delete(delete_bookmark))
         .route("/api/bookmarks/document/{doc_id}", get(bookmark_status))
@@ -236,6 +242,41 @@ async fn bookmark_status(
         Some(b) => Ok(Json(json!({ "bookmarked": true, "slot": b.slot }))),
         None => Ok(Json(json!({ "bookmarked": false }))),
     }
+}
+
+// ── Recovery Key ──────────────────────────────────────────────────────────
+
+async fn generate_recovery_key(
+    State(state): State<AppState>,
+    CurrentUser(current): CurrentUser,
+    _: CsrfToken,
+    _session: Session,
+) -> AppResult<Json<Value>> {
+    let _cfg = VaultConfig::get(&state.db)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("vault not configured".into()))?;
+
+    let kek_hex = current
+        .vault_kek_hex
+        .as_ref()
+        .ok_or_else(|| AppError::BadRequest("vault KEK not in session".into()))?;
+    let kek = crypto::kek_from_hex(kek_hex)?;
+
+    let recovery_dek = crypto::generate_recovery_key();
+    let wrapped_recovery_dek =
+        crypto::wrap_dek(&kek, &recovery_dek).map_err(AppError::Internal)?;
+
+    RecoveryKey::upsert(&state.db, &wrapped_recovery_dek)
+        .await
+        .map_err(AppError::Internal)?;
+
+    let recovery_key_hex = crypto::recovery_key_to_hex(&recovery_dek);
+
+    Ok(Json(json!({
+        "success": true,
+        "recovery_key": recovery_key_hex,
+        "message": "Save this recovery key in a secure location. It can be used to reset your password if you forget it."
+    })))
 }
 
 // ── Factory reset ─────────────────────────────────────────────────────────
