@@ -268,7 +268,7 @@ async function loadIndexedFolders() {
             </svg>
             <span>${folder}</span>
           </div>
-          <button class="folder-remove" onclick="removeFolder('${folder}')">Remove</button>
+          <button class="folder-remove" onclick="removeFolder(this)">Remove</button>
         </div>
       `).join('');
     } else {
@@ -279,7 +279,12 @@ async function loadIndexedFolders() {
   }
 }
 
-window.removeFolder = async function(folderPath) {
+window.removeFolder = async function(btn) {
+  // Read the path from the unmangled data-path attribute — an inline-onclick JS
+  // string literal would corrupt a Windows path's backslashes.
+  const item = btn.closest('[data-path]');
+  const folderPath = item ? item.dataset.path : '';
+  if (!folderPath) return;
   if (!confirm(`Remove "${folderPath}" from indexed folders?`)) return;
   
   try {

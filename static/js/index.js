@@ -1735,7 +1735,7 @@
                 </svg>
                 <span>${folder}</span>
               </div>
-              <button class="connected-folder-remove" onclick="removeConnectedFolder('${folder}')" title="Remove">
+              <button class="connected-folder-remove" onclick="removeConnectedFolder(this)" title="Remove">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1751,7 +1751,12 @@
       }
     }
 
-    async function removeConnectedFolder(folderPath) {
+    async function removeConnectedFolder(btn) {
+      // Read the path from the unmangled data-path attribute — an inline-onclick
+      // JS string literal would corrupt a Windows path's backslashes.
+      const item = btn.closest('[data-path]');
+      const folderPath = item ? item.dataset.path : '';
+      if (!folderPath) return;
       if (!confirm(`Remove "${folderPath}" from index? Files will not be deleted.`)) {
         return;
       }
@@ -1967,7 +1972,7 @@
                 </svg>
                 <span>${a.name}</span>
               </div>
-              <button class="connected-folder-remove" onclick="removeIndexedArchive('${a.path.replace(/'/g, "\\'")}')" title="Remove">
+              <button class="connected-folder-remove" onclick="removeIndexedArchive(this)" title="Remove">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
                   <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -1983,7 +1988,12 @@
       }
     }
 
-    async function removeIndexedArchive(archivePath) {
+    async function removeIndexedArchive(btn) {
+      // Read the path from the unmangled data-path attribute — passing a Windows
+      // path through an inline-onclick JS string literal corrupts its backslashes.
+      const item = btn.closest('[data-path]');
+      const archivePath = item ? item.dataset.path : '';
+      if (!archivePath) return;
       if (!confirm(`Remove "${archivePath}" from index? The file will not be deleted.`)) {
         return;
       }

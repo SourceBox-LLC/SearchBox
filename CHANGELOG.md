@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+- **Removing an indexed folder or archive now works on Windows.** The remove
+  button passed the path through an inline-`onclick` JavaScript string, which
+  mangled Windows backslashes (`C:\Users\…` arrived as `C:Users…`), so the
+  wrong path reached the server and nothing was removed. It now reads the path
+  from the list element instead. Affected the folder list (main page +
+  Settings) and the indexed-archive list.
+
 ### Changed
 - Internal: removed ~510 lines of dead SaaS code (subscription, team
   management, invite modal, billing portal, and "upgrade to cloud" UI) from
