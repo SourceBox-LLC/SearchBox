@@ -470,6 +470,11 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
                         Ok(b) => b.to_vec(),
                         Err(_) => continue,
                     };
+                    // Skip Kiwix redirect/alias stubs (tiny `<meta http-equiv=
+                    // refresh>` pages) — navigation aliases, not real articles.
+                    if ext == "html" && is_redirect_html(&bytes) {
+                        continue;
+                    }
                     let rel = if ext == "html" {
                         zim_article_path(&url)
                     } else {
@@ -599,6 +604,23 @@ fn zim_media_path(url: &str, ext: &str) -> PathBuf {
     }
 }
 
+/// Detect a Kiwix redirect/alias stub: a tiny HTML page whose only job is a
+/// `<meta http-equiv="refresh" …>` to the real article (e.g. "Climate of
+/// Washington, D.C." → "Washington, D.C.#Climate"). They're navigation aliases,
+/// not content, so they're skipped during extraction.
+fn is_redirect_html(bytes: &[u8]) -> bool {
+    // Normalise the head — lowercase, drop whitespace + quotes — so every
+    // `http-equiv="refresh"` / `='refresh'` / `=refresh` spelling collapses to a
+    // single needle. Only the first 2 KB (the <head>) is worth scanning.
+    let end = bytes.len().min(2048);
+    let head: String = String::from_utf8_lossy(&bytes[..end])
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '"' && *c != '\'')
+        .collect::<String>()
+        .to_ascii_lowercase();
+    head.contains("http-equiv=refresh")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -699,5 +721,18 @@ mod tests {
         // SVG (no raster thumbnail) and non-images are skipped.
         assert_eq!(image_ext_from_mime("image/svg+xml"), None);
         assert_eq!(image_ext_from_mime("text/html"), None);
+    }
+
+    #[test]
+    fn is_redirect_html_detects_meta_refresh() {
+        let stub = br#"<html><head><title>Climate of Washington, D.C.</title>
+            <meta http-equiv="refresh" content="0;URL='./Washington,_D.C.#Climate'" />
+            </head><body><a href="./Washington,_D.C.#Climate">Climate of Washington, D.C.</a></body></html>"#;
+        assert!(is_redirect_html(stub));
+        // A real article (no meta refresh) is kept.
+        let real =
+            b"<html><head><title>Real</title></head><body><p>Lots of genuine prose.</p></body></html>";
+        assert!(!is_redirect_html(real));
+        assert!(!is_redirect_html(b""));
     }
 }

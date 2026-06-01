@@ -907,7 +907,7 @@
                   <img src="/api/thumbnail/${result.id}" alt="${result.filename}" class="image-thumbnail" loading="lazy" 
                        onload="console.log('Vault image loaded: ${result.id}')" 
                        onerror="console.error('Vault image failed: ${result.id}'); this.style.display='none'; this.nextElementSibling.style.display='block';">
-                  <div class="image-error-placeholder" style="display: none; width: 120px; height: 120px; background: #30363d; border: 1px solid #484f58; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #8b949e; font-size: 12px; text-align: center;">
+                  <div class="image-error-placeholder" style="display: none; width: 120px; height: 120px; background: #30363d; border: 1px solid #484f58; border-radius: 6px; align-items: center; justify-content: center; color: #8b949e; font-size: 12px; text-align: center;">
                     ⚠️ Image<br>Load Error
                   </div>
                   <div class="image-info">
@@ -985,7 +985,7 @@
                   <img src="/api/thumbnail/${result.id}" alt="${result.filename}" class="image-thumbnail" loading="lazy" 
                        onload="console.log('Folder image loaded: ${result.id}')" 
                        onerror="console.error('Folder image failed: ${result.id}'); this.style.display='none'; this.nextElementSibling.style.display='block';">
-                  <div class="image-error-placeholder" style="display: none; width: 120px; height: 120px; background: #30363d; border: 1px solid #484f58; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #8b949e; font-size: 12px; text-align: center;">
+                  <div class="image-error-placeholder" style="display: none; width: 120px; height: 120px; background: #30363d; border: 1px solid #484f58; border-radius: 6px; align-items: center; justify-content: center; color: #8b949e; font-size: 12px; text-align: center;">
                     ⚠️ Image<br>Load Error
                   </div>
                   <div class="image-info">
