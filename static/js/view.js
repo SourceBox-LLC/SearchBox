@@ -255,15 +255,26 @@ let documentData = null;
       const host = document.getElementById('html-content');
       if (!host) return;
 
-      // For a ZIM doc, derive the on-demand content URL from the file path:
-      //   …/archives/<archive>/<article>.html  ->  /api/zim/content/<archive>/<article>
-      let zimSrc = null;
+      // Archive-sourced HTML renders from a real file URL so its relative
+      // images / CSS / links resolve. ZIM serves on-demand from the .zim (its
+      // assets aren't on disk); ZIP serves the extracted files directly.
+      //   …/archives/<archive>/<path>.html
+      let archiveSrc = null;
       if (documentData.source === 'zim') {
         const fp = (documentData.file_path || '').replace(/\\/g, '/');
         const m = fp.match(/\/archives\/([^/]+)\/(.+?)\.html?$/i);
         if (m) {
+          // ZIM article URLs are extensionless — strip the .html we added.
           const seg = m[2].split('/').map(encodeURIComponent).join('/');
-          zimSrc = `/api/zim/content/${encodeURIComponent(m[1])}/${seg}`;
+          archiveSrc = `/api/zim/content/${encodeURIComponent(m[1])}/${seg}`;
+        }
+      } else if (documentData.source === 'zip') {
+        const fp = (documentData.file_path || '').replace(/\\/g, '/');
+        const m = fp.match(/\/archives\/([^/]+)\/(.+)$/);
+        if (m) {
+          // Keep the full path (extension + subdirs) — it's the real on-disk file.
+          const seg = m[2].split('/').map(encodeURIComponent).join('/');
+          archiveSrc = `/api/archive/raw/${encodeURIComponent(m[1])}/${seg}`;
         }
       }
 
@@ -271,8 +282,8 @@ let documentData = null;
         const iframe = document.createElement('iframe');
         iframe.sandbox = 'allow-same-origin';
         iframe.style.cssText = 'width:100%; border:none; min-height:600px; background:#fff; border-radius:8px;';
-        if (zimSrc) {
-          iframe.src = zimSrc;
+        if (archiveSrc) {
+          iframe.src = archiveSrc;
         } else {
           const resp = await fetch(`/api/html/${docId}`);
           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

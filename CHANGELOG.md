@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+- **ZIP-archived web pages now render with their images, CSS, and links.**
+  Opening an HTML file from an indexed `.zip` (e.g. a saved website) serves it
+  and its sibling assets from the extracted files, so relative images,
+  stylesheets, and inter-page links resolve — like ZIM articles already did.
+  Served read-only and script-blocked (iframe sandbox + CSP), confined to the
+  archive directory (no path traversal).
+
 ### Fixed
 - **Folder- and archive-indexed documents now show their date** and sort
   correctly under Explore's "Recent" — they were being indexed with no date

@@ -32,6 +32,10 @@ pub fn routes() -> Router<AppState> {
         .route("/api/archive/list", get(list_archives))
         .route("/api/archive/remove", post(remove_archive))
         .route("/api/zim/content/{archive}/{*path}", get(serve_zim_content))
+        .route(
+            "/api/archive/raw/{archive}/{*path}",
+            get(serve_archive_file),
+        )
 }
 
 /// Extracted archives live under `<base_dir>/archives/<name>/`.
@@ -321,6 +325,59 @@ fn inject_base_href(html: &[u8], base: &str) -> Vec<u8> {
     out.into_bytes()
 }
 
+/// Serve a file straight out of an extracted ZIP archive directory, confined to
+/// that archive. The viewer points an iframe at an archived web page (via its
+/// real file URL) so the page's relative images / CSS / links resolve against
+/// the on-disk siblings. HTML gets a script-blocking CSP (the iframe `sandbox`
+/// blocks scripts too). ZIM uses `serve_zim_content` instead (its assets live
+/// in the .zim, not on disk).
+async fn serve_archive_file(
+    State(state): State<AppState>,
+    _: CurrentUser,
+    Path((archive, rel)): Path<(String, String)>,
+) -> AppResult<Response> {
+    if archive.is_empty()
+        || archive.contains("..")
+        || archive.contains('/')
+        || archive.contains('\\')
+    {
+        return Err(AppError::BadRequest("invalid archive".into()));
+    }
+    let base = archives_root(&state).join(&archive);
+    let target = confined_path(&base, &rel)
+        .ok_or_else(|| AppError::NotFound("file not found in archive".into()))?;
+
+    let bytes = std::fs::read(&target).map_err(|e| AppError::Internal(e.into()))?;
+    let mime_str = mime_guess::from_path(&target)
+        .first_or_octet_stream()
+        .to_string();
+    let ct = HeaderValue::from_str(&mime_str)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+
+    let mut resp = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, ct)
+        .body(Body::from(bytes))
+        .map_err(|e| AppError::Internal(anyhow!("build response: {e}")))?;
+    if mime_str.starts_with("text/html") {
+        resp.headers_mut().insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("script-src 'none'; object-src 'none'"),
+        );
+    }
+    Ok(resp)
+}
+
+/// Resolve `rel` under `base`, returning the canonical path only if it stays
+/// inside `base` (rejects `..` traversal and symlink escapes) and exists.
+fn confined_path(base: &StdPath, rel: &str) -> Option<PathBuf> {
+    let canon_base = std::fs::canonicalize(base).ok()?;
+    let canon_target = std::fs::canonicalize(base.join(rel)).ok()?;
+    canon_target
+        .starts_with(&canon_base)
+        .then_some(canon_target)
+}
+
 // ── Extraction ─────────────────────────────────────────────────────────────
 
 fn extract_archive(archive: &StdPath, dest: &StdPath, ext: &str) -> Result<()> {
@@ -470,6 +527,26 @@ fn zim_article_path(url: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confined_path_serves_inside_and_blocks_traversal() {
+        let root = std::env::temp_dir().join(format!("sb-confine-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("site/img")).unwrap();
+        std::fs::write(root.join("site/index.html"), b"<html></html>").unwrap();
+        std::fs::write(root.join("site/img/logo.png"), b"x").unwrap();
+        // A real file OUTSIDE the archive, so we test the prefix check rather
+        // than just "the escaped file happens not to exist".
+        std::fs::write(root.join("secret.txt"), b"top secret").unwrap();
+        let base = root.join("site");
+
+        assert!(confined_path(&base, "index.html").is_some());
+        assert!(confined_path(&base, "img/logo.png").is_some());
+        assert!(confined_path(&base, "../secret.txt").is_none());
+        assert!(confined_path(&base, "../../etc/passwd").is_none());
+        assert!(confined_path(&base, "missing.html").is_none());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn base_href_inserted_after_head() {
