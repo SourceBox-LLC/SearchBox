@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.9 — 2026-06-01
+
 ### Added
 - **ZIP-archived web pages now render with their images, CSS, and links.**
   Opening an HTML file from an indexed `.zip` (e.g. a saved website) serves it
