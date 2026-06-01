@@ -23,6 +23,9 @@ mod state;
 mod templates;
 mod vault;
 
+#[cfg(test)]
+mod integration_tests;
+
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
