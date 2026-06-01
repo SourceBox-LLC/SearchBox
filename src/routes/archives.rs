@@ -423,18 +423,30 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
 
     let z = Zim::new(archive).map_err(|e| anyhow!("open zim: {e}"))?;
 
-    // Pass 1: collect each HTML article's (url, cluster, blob).
-    let mut items: Vec<(String, u32, u32)> = Vec::new();
+    // Pass 1: collect each HTML article AND each image, each tagged with the
+    // on-disk extension to write it as. Articles become searchable text docs;
+    // images are written out too so the folder indexer thumbnails them and
+    // indexes them as searchable image docs — that's what fills the results-page
+    // image gallery (their Wikipedia filenames carry the relevant keywords).
+    let mut items: Vec<(String, u32, u32, &'static str)> = Vec::new();
+    let mut article_count = 0usize;
     for entry in z.iterate_by_urls() {
-        let is_html = matches!(&entry.mime_type, MimeType::Type(t) if t.starts_with("text/html"));
-        if !is_html {
+        let MimeType::Type(mime) = &entry.mime_type else {
             continue;
-        }
+        };
+        let ext = if mime.starts_with("text/html") {
+            article_count += 1;
+            "html"
+        } else if let Some(e) = image_ext_from_mime(mime) {
+            e
+        } else {
+            continue;
+        };
         if let Some(Target::Cluster(cluster, blob)) = entry.target {
-            items.push((entry.url, cluster, blob));
+            items.push((entry.url, cluster, blob, ext));
         }
     }
-    if items.is_empty() {
+    if article_count == 0 {
         return Err(anyhow!(
             "no HTML articles found in this ZIM (unsupported layout or empty archive)"
         ));
@@ -452,17 +464,29 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
                 while i < items.len() && items[i].1 == cluster_idx {
                     let url = items[i].0.clone();
                     let blob = items[i].2;
+                    let ext = items[i].3;
                     i += 1;
                     let bytes = match cluster.get_blob(blob) {
                         Ok(b) => b.to_vec(),
                         Err(_) => continue,
                     };
-                    let outpath = dest.join(zim_article_path(&url));
+                    let rel = if ext == "html" {
+                        zim_article_path(&url)
+                    } else {
+                        zim_media_path(&url, ext)
+                    };
+                    let outpath = dest.join(rel);
                     if let Some(parent) = outpath.parent() {
-                        std::fs::create_dir_all(parent)?;
+                        if std::fs::create_dir_all(parent).is_err() {
+                            continue;
+                        }
                     }
-                    std::fs::write(&outpath, &bytes)?;
-                    written += 1;
+                    // Best-effort per entry: one unwritable file (e.g. an
+                    // over-long path) must not abort extraction of the other
+                    // thousands of articles + images.
+                    if std::fs::write(&outpath, &bytes).is_ok() {
+                        written += 1;
+                    }
                 }
             }
             // A cluster we can't read/decompress (e.g. legacy bzip2/zlib) skips
@@ -485,7 +509,10 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
     if let Err(e) = std::fs::write(&sidecar, abs.to_string_lossy().as_bytes()) {
         tracing::warn!("zim sidecar write failed ({}): {e}", sidecar.display());
     }
-    tracing::info!("extracted {written} ZIM articles to {}", dest.display());
+    tracing::info!(
+        "extracted {written} ZIM entries (articles + images) to {}",
+        dest.display()
+    );
     Ok(())
 }
 
@@ -521,6 +548,54 @@ fn zim_article_path(url: &str) -> PathBuf {
         let mut s = path.into_os_string();
         s.push(".html");
         PathBuf::from(s)
+    }
+}
+
+/// Map an image MIME type to the file extension we write it out as. Returns
+/// `None` for types we can't rasterise a thumbnail for (e.g. SVG), which are
+/// then skipped during extraction.
+fn image_ext_from_mime(mime: &str) -> Option<&'static str> {
+    match mime.split(';').next().unwrap_or(mime).trim() {
+        "image/webp" => Some("webp"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/png" => Some("png"),
+        "image/gif" => Some("gif"),
+        "image/bmp" | "image/x-ms-bmp" => Some("bmp"),
+        "image/tiff" => Some("tiff"),
+        _ => None,
+    }
+}
+
+/// Turn a ZIM image entry URL into a safe relative path under `_zim_media_/`,
+/// keeping the descriptive Wikipedia filename (so search matches it) but forcing
+/// the extension to match the actual bytes: Kiwix recodes most media to WebP, so
+/// a URL ending in `.jpg` can really be WebP — writing it as `.jpg` would break
+/// thumbnail decoding (which keys off the extension).
+fn zim_media_path(url: &str, ext: &str) -> PathBuf {
+    let mut path = PathBuf::from("_zim_media_");
+    for comp in url.split('/') {
+        if comp.is_empty() || comp == "." || comp == ".." {
+            continue;
+        }
+        let safe: String = comp
+            .chars()
+            .map(|c| match c {
+                '<' | '>' | ':' | '"' | '|' | '?' | '*' | '\\' => '_',
+                c if (c as u32) < 0x20 => '_',
+                c => c,
+            })
+            .collect();
+        path.push(safe);
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("image")
+        .to_string();
+    match path.parent() {
+        Some(parent) => parent.join(format!("{stem}.{ext}")),
+        None => PathBuf::from(format!("_zim_media_/{stem}.{ext}")),
     }
 }
 
@@ -588,5 +663,41 @@ mod tests {
             PathBuf::from("secret.html")
         );
         assert_eq!(zim_article_path(""), PathBuf::from("index.html"));
+    }
+
+    #[test]
+    fn zim_media_path_keeps_name_swaps_ext() {
+        // Descriptive Wikipedia name kept (so it's searchable), extension forced
+        // to match the real bytes, namespaced under _zim_media_/.
+        let p = zim_media_path(
+            "_assets_/abc123/12-07-13-washington-by-RalfR-08.jpg",
+            "webp",
+        );
+        assert!(
+            p.to_string_lossy()
+                .replace('\\', "/")
+                .ends_with("12-07-13-washington-by-RalfR-08.webp"),
+            "{p:?}"
+        );
+        assert!(p.starts_with("_zim_media_"));
+        // `..` traversal components are dropped.
+        assert!(!zim_media_path("../../x.png", "png")
+            .to_string_lossy()
+            .contains(".."));
+    }
+
+    #[test]
+    fn image_ext_from_mime_maps_known_types() {
+        assert_eq!(image_ext_from_mime("image/webp"), Some("webp"));
+        assert_eq!(image_ext_from_mime("image/png"), Some("png"));
+        assert_eq!(image_ext_from_mime("image/jpeg"), Some("jpg"));
+        // Parameters after `;` are ignored.
+        assert_eq!(
+            image_ext_from_mime("image/jpeg; charset=binary"),
+            Some("jpg")
+        );
+        // SVG (no raster thumbnail) and non-images are skipped.
+        assert_eq!(image_ext_from_mime("image/svg+xml"), None);
+        assert_eq!(image_ext_from_mime("text/html"), None);
     }
 }

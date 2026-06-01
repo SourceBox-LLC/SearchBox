@@ -2589,17 +2589,36 @@
       window.location.href = imageUrl;
     }
 
-    // Update vertical gallery when search results are rendered
-    function updateVerticalGallery(results) {
-      const images = collectImagesFromResults(results);
+    // Update the vertical gallery for the current query. Rather than only
+    // surfacing image docs that happen to be among the text hits (which is empty
+    // for a document search — e.g. a ZIM article query), run a DEDICATED image
+    // search so the gallery shows images relevant to the query, Vane-style. Falls
+    // back to any images within the text results if the dedicated query is empty.
+    async function updateVerticalGallery(results, query) {
+      let images = [];
+      const q = (query || '').trim();
+      if (q) {
+        try {
+          const imgResults = await documentsIndex.search(q, {
+            limit: 24,
+            filter: 'is_image = true',
+          });
+          images = collectImagesFromResults(imgResults.hits);
+        } catch (e) {
+          console.error('gallery image search failed:', e);
+        }
+      }
+      if (images.length === 0) {
+        images = collectImagesFromResults(results);
+      }
       renderVerticalGallery(images);
     }
 
-    // Modify the existing renderResults function to update vertical gallery
+    // Wrap renderResults so the gallery refreshes whenever results render.
     const originalRenderResults = renderResults;
     renderResults = function(results, query, totalHits, processingTime, page) {
       originalRenderResults(results, query, totalHits, processingTime, page);
-      updateVerticalGallery(results);
+      updateVerticalGallery(results, query);
     };
 
     // Search Recommendations Functions
