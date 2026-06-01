@@ -31,7 +31,7 @@ dirs, since they're embedded.
 ## Windows MSI installer
 
 > **For end users:** don't build anything — download the latest
-> `SearchBox-<version>-x86_64.msi` from [Releases](https://github.com/sourceboxai/searchbox/releases)
+> `SearchBox-<version>-x86_64.msi` from [Releases](https://github.com/SourceBox-LLC/SearchBox/releases)
 > and double-click. This section is for maintainers cutting a release.
 
 ### Releasing (the normal path)
@@ -52,6 +52,34 @@ The pipeline is defined in `.github/workflows/release.yml`. It checks
 out the repo, installs Rust + cargo-wix, runs `wix\build.ps1` (same
 script local dev uses), uploads the MSI as a workflow artifact, and
 attaches it to the Release for tag builds.
+
+### Publishing to winget (optional)
+
+Once a release is on the Releases page, `.github/workflows/winget.yml` can
+submit it to the [Windows Package Manager](https://github.com/microsoft/winget-pkgs)
+so users get `winget install SourceBox.SearchBox` and `winget upgrade`.
+winget accepts unsigned MSIs, and a single manifest carries both the x64
+and ARM64 installers (the architecture is read from each MSI).
+
+**One-time setup (maintainer):**
+
+1. Create a **classic** Personal Access Token (not fine-grained) with the
+   `public_repo` scope and add it as the repo secret `WINGET_TOKEN`.
+2. Fork `microsoft/winget-pkgs` into the account/org that token can push to
+   (defaults to `SourceBox-LLC`; otherwise set `fork-user` in the workflow).
+
+**Submitting:**
+
+- New releases trigger the workflow automatically (on `release: released`).
+- For the first / back-fill submission, run the **winget** workflow manually
+  (Actions → winget → Run workflow) and pass an existing tag, e.g. `v0.3.0`.
+
+The first submission creates a new package, so expect a one-time moderator
+review on the winget-pkgs PR. The `identifier` (`SourceBox.SearchBox`) is
+permanent — change it in the workflow before the first run if you want a
+different name. Heads-up: winget is a second update channel alongside the
+app's built-in update check; the simplest convention is to keep in-app
+update primary and tell winget users to `winget upgrade`.
 
 ### Building the MSI locally
 
@@ -146,14 +174,9 @@ shipping — the REST shape and filter syntax occasionally change.
   imaged Windows 10 the runtime may be absent, and the MSI does not yet bundle
   the WebView2 bootstrapper — so the window can fail to open. Bundling the
   Evergreen WebView2 runtime in `wix\` is a pending follow-up.
-- **x64 only.** The WXS platform is hard-coded to `x64`; ARM64 Windows
-  would need a second build with a different `--target` and a second
-  MSI attached to the release.
 - **No Service install.** Making SearchBox a Windows Service needs a
   `windows-service` crate integration; see `src/main.rs` if you want to
   add one.
-- **No auto-update.** Users update by downloading and running a new MSI;
-  `MajorUpgrade` in `wix\main.wxs` handles in-place upgrades cleanly.
 - **Unsigned.** Users see a SmartScreen warning on first install. The
   fix is a code-signing cert — see the signing section above. CI
   deliberately doesn't sign; add the cert + `signtool` call as a

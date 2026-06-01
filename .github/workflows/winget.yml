@@ -1,0 +1,54 @@
+# Publish each tagged release to the Windows Package Manager (winget) so users
+# can `winget install SourceBox.SearchBox` and `winget upgrade` it. The job opens
+# a pull request against microsoft/winget-pkgs with a manifest generated from the
+# release's MSI assets — both x86_64 and aarch64 (the architecture is read out of
+# each MSI). winget does NOT require code-signing; unsigned MSIs are accepted.
+#
+# ── ONE-TIME SETUP (maintainer) ──────────────────────────────────────────────
+#  1. Create a *classic* Personal Access Token (NOT a fine-grained one) with the
+#     `public_repo` scope at https://github.com/settings/tokens, and add it as a
+#     repository secret named WINGET_TOKEN
+#     (Settings → Secrets and variables → Actions).
+#  2. Fork microsoft/winget-pkgs into the account/org that token can push to.
+#     `fork-user` defaults to this repo's owner (SourceBox-LLC); if you fork it
+#     under a different account, add `fork-user: <that-account>` below.
+#  3. The first run submits a brand-new package, so the winget-pkgs PR gets a
+#     one-time "New-Package" moderator review. Later versions are automated.
+#
+# ── HOW IT RUNS ──────────────────────────────────────────────────────────────
+#  • Automatically when a non-prerelease GitHub Release is published.
+#  • Manually via "Run workflow" → pass an existing tag (e.g. v0.3.0). Use this
+#    once to submit the already-published release that predates this workflow.
+#
+# NOTE: `identifier` is the permanent winget PackageIdentifier. SourceBox.SearchBox
+# follows the <Publisher>.<App> convention (cf. Google.Chrome, Mozilla.Firefox).
+# Change it here BEFORE the first submission if you want a different name.
+name: winget
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to submit (e.g. v0.3.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to @main per the action's documentation. For stricter
+      # supply-chain hygiene (WINGET_TOKEN is exposed to this step) pin to a
+      # specific commit SHA instead.
+      - uses: vedantmgoyal9/winget-releaser@main
+        with:
+          identifier: SourceBox.SearchBox
+          # Only the .msi assets are installers (ignore GitHub's source archives).
+          installers-regex: '\.msi$'
+          max-versions-to-keep: 5
+          release-tag: ${{ inputs.tag || github.event.release.tag_name }}
+          token: ${{ secrets.WINGET_TOKEN }}
