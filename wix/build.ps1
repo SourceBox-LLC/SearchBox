@@ -93,16 +93,15 @@ if ($SkipBuild) {
   if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 }
 
-# MSI platform follows the build target. main.wxs reads it as $(var.Platform);
-# WiX >= 3.14 is required to build an arm64 MSI.
-$Platform = if ($Target -like 'aarch64*') { 'arm64' } else { 'x64' }
-
-Write-Host "==> cargo wix (Platform=$Platform)"
+Write-Host "==> cargo wix (target $Target)"
 # -v makes the WiX invocation visible. --target forces the same triple as the
-# build above so cargo-wix finds target\$Target\release\searchbox.exe.
-# cargo-wix auto-loads WixUIExtension *and* WixUtilExtension — don't pass them
-# via -C/-L or candle errors with a duplicate-namespace load.
-cargo wix --no-build --nocapture --target $Target -C "-dPlatform=$Platform" -v
+# build above so cargo-wix finds target\$Target\release\searchbox.exe AND
+# auto-defines $(var.Platform) (x64 / arm64), which main.wxs uses for the
+# Package Platform — so do NOT pass -dPlatform ourselves (a duplicate define is
+# candle error CNDL0288). cargo-wix also auto-loads WixUIExtension *and*
+# WixUtilExtension — don't pass them via -C/-L or candle errors on a duplicate
+# namespace load.
+cargo wix --no-build --nocapture --target $Target -v
 if ($LASTEXITCODE -ne 0) { throw "cargo wix failed" }
 
 $MsiOut = Get-ChildItem -Path (Join-Path $RepoRoot 'target\wix') -Filter '*.msi' -ErrorAction SilentlyContinue | Select-Object -First 1
