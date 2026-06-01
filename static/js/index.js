@@ -850,6 +850,12 @@
       
       resultsList.innerHTML = results.map(result => {
         const typeConfig = getFileTypeConfig(result.filename);
+        // Clean, human-friendly heading: drop the file extension and turn the
+        // underscores in ZIM/web-page article filenames into spaces. Any <em>
+        // search-highlight tags from Meilisearch are preserved.
+        const displayTitle = (result.filename || '')
+          .replace(/\.[A-Za-z0-9]{1,8}$/, '')
+          .replace(/_/g, ' ');
         // Escape HTML content to prevent rendering issues
         const escapeHtml = (text) => {
           const div = document.createElement('div');
@@ -905,7 +911,7 @@
                     ⚠️ Image<br>Load Error
                   </div>
                   <div class="image-info">
-                    <div class="result-title">${result.filename} ${lockBadge}</div>
+                    <div class="result-title">${displayTitle} ${lockBadge}</div>
                     <div class="image-meta">Image • ${result.fileType.toUpperCase()} • ${formatFileSize(result.fileSize)}</div>
                   </div>
                 </div>
@@ -935,7 +941,7 @@
                   <div class="document-thumbnail-container">
                     <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy">
                     <div class="document-info">
-                      <div class="result-title">${result.filename} ${lockBadge} ${imageBadge}</div>
+                      <div class="result-title">${displayTitle} ${lockBadge} ${imageBadge}</div>
                       <p class="result-snippet">${snippet}</p>
                     </div>
                   </div>
@@ -955,7 +961,7 @@
                       <span class="path"> › ${result.fileType.toUpperCase()} › ${formatFileSize(result.fileSize)}</span>
                     </div>
                   </div>
-                  <div class="result-title">${result.filename} ${lockBadge} ${imageBadge}</div>
+                  <div class="result-title">${displayTitle} ${lockBadge} ${imageBadge}</div>
                   <p class="result-snippet">${snippet}</p>
                 </div>
               `;
@@ -983,7 +989,7 @@
                     ⚠️ Image<br>Load Error
                   </div>
                   <div class="image-info">
-                    <div class="result-title">${result.filename}</div>
+                    <div class="result-title">${displayTitle}</div>
                     <div class="image-meta">Image • ${result.fileType.toUpperCase()} • ${formatFileSize(result.fileSize)}</div>
                   </div>
                 </div>
@@ -1013,7 +1019,7 @@
                   <div class="document-thumbnail-container">
                     <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy">
                     <div class="document-info">
-                      <div class="result-title">${result.filename} ${imageBadge}</div>
+                      <div class="result-title">${displayTitle} ${imageBadge}</div>
                       <p class="result-snippet">${snippet}</p>
                     </div>
                   </div>
@@ -1033,7 +1039,7 @@
                       <span class="path"> › ${result.fileType.toUpperCase()} › ${formatFileSize(result.fileSize)}</span>
                     </div>
                   </div>
-                  <div class="result-title">${result.filename} ${imageBadge}</div>
+                  <div class="result-title">${displayTitle} ${imageBadge}</div>
                   <p class="result-snippet">${snippet}</p>
                 </a>
               `;

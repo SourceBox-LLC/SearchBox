@@ -407,7 +407,113 @@ function initUpdates() {
   if (autoToggle && autoToggle.checked) check();
 }
 
+// ── Search Engine (Meilisearch) ───────────────────────────────────────────
+function initMeili() {
+  const dot = document.getElementById('meili-status-dot');
+  const text = document.getElementById('meili-status-text');
+  const statsEl = document.getElementById('meili-stats');
+  const pathInput = document.getElementById('meili-path');
+  const portInput = document.getElementById('meili-port');
+  const autostart = document.getElementById('meili-autostart');
+  const startBtn = document.getElementById('meili-start-btn');
+  const stopBtn = document.getElementById('meili-stop-btn');
+  const clearBtn = document.getElementById('meili-clear-btn');
+  if (!text || !startBtn) return;
+
+  const toast = (type, title, msg) => {
+    if (typeof showToast === 'function') showToast(type, title, msg);
+  };
+
+  async function loadStatus() {
+    try {
+      const d = await (await fetch('/api/meilisearch/status')).json();
+      const running = !!d.running;
+      if (dot) dot.className = 'status-dot ' + (running ? 'running' : 'stopped');
+      let label = running ? 'Running' : 'Stopped';
+      if (running && d.version) label += ` · v${d.version}`;
+      text.textContent = label;
+      if (statsEl) {
+        const n = d.stats && (d.stats.numberOfDocuments ?? d.stats.number_of_documents);
+        statsEl.textContent = running && n != null ? `${Number(n).toLocaleString()} documents indexed` : '';
+      }
+      if (startBtn) startBtn.disabled = running;
+      if (stopBtn) stopBtn.disabled = !running;
+    } catch (e) {
+      if (dot) dot.className = 'status-dot stopped';
+      text.textContent = 'Status unavailable';
+    }
+  }
+
+  async function loadConfig() {
+    try {
+      const d = await (await fetch('/api/meilisearch/config')).json();
+      if (pathInput && d.meilisearch_path) pathInput.value = d.meilisearch_path;
+      if (portInput && d.port) portInput.value = d.port;
+      if (autostart) autostart.checked = !!d.auto_start;
+    } catch (e) { /* keep template defaults */ }
+  }
+
+  async function saveConfig() {
+    // Only send a path/port when actually set, so an empty field never clobbers
+    // the sibling-binary auto-detect or the default port.
+    const body = { auto_start: autostart ? autostart.checked : undefined };
+    const p = pathInput && pathInput.value.trim();
+    const port = portInput && portInput.value.trim();
+    if (p) body.meilisearch_path = p;
+    if (port) body.meilisearch_port = port;
+    try {
+      await authFetch('/api/meilisearch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) { /* non-fatal */ }
+  }
+
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    text.textContent = 'Starting…';
+    await saveConfig();
+    try {
+      const resp = await authFetch('/api/meilisearch/start', { method: 'POST' });
+      const d = await resp.json();
+      if (!resp.ok) toast('error', 'Meilisearch', d.error || 'Failed to start');
+    } catch (e) { toast('error', 'Meilisearch', 'Could not reach the server'); }
+    setTimeout(loadStatus, 1000);
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    stopBtn.disabled = true;
+    text.textContent = 'Stopping…';
+    try {
+      const resp = await authFetch('/api/meilisearch/stop', { method: 'POST' });
+      const d = await resp.json();
+      if (!resp.ok) toast('error', 'Meilisearch', d.error || 'Failed to stop');
+    } catch (e) { toast('error', 'Meilisearch', 'Could not reach the server'); }
+    setTimeout(loadStatus, 600);
+  });
+
+  clearBtn.addEventListener('click', async () => {
+    if (!confirm('Clear the entire search index? Every indexed document is removed from search (your actual files are NOT deleted). You would need to re-index to search again.')) return;
+    clearBtn.disabled = true;
+    try {
+      const resp = await authFetch('/api/meilisearch/clear', { method: 'POST' });
+      const d = await resp.json();
+      toast(resp.ok ? 'success' : 'error', resp.ok ? 'Index cleared' : 'Clear failed',
+        resp.ok ? 'The search index was cleared.' : (d.error || 'Could not clear the index'));
+    } catch (e) { toast('error', 'Clear failed', 'Could not reach the server'); }
+    clearBtn.disabled = false;
+    loadStatus();
+  });
+
+  if (autostart) autostart.addEventListener('change', saveConfig);
+
+  loadConfig();
+  loadStatus();
+}
+
 // Initialize
 loadUserInfo();
 loadIndexedFolders();
 initUpdates();
+initMeili();

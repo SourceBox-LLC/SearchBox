@@ -126,10 +126,26 @@ fn read_markdown(path: &Path) -> Result<String> {
 }
 
 fn read_html(path: &Path) -> Result<String> {
+    use scraper::Node;
     let src = read_text_file(path)?;
     let doc = scraper::Html::parse_document(&src);
-    let text: String = doc.root_element().text().collect::<Vec<_>>().join(" ");
-    Ok(collapse_ws(&text))
+    // Collect visible text, skipping <script>/<style>/<noscript> subtrees so CSS
+    // and JS don't pollute the indexed content — and therefore the search
+    // snippet. ZIM / saved web-page articles inline a lot of both, which is why
+    // results were leading with `.mw-parser-output{…}` rubbish.
+    let mut parts: Vec<String> = Vec::new();
+    for node in doc.tree.nodes() {
+        let Node::Text(text) = node.value() else {
+            continue;
+        };
+        let in_code = node.ancestors().any(|a| {
+            matches!(a.value(), Node::Element(e) if matches!(e.name(), "script" | "style" | "noscript"))
+        });
+        if !in_code {
+            parts.push(text.to_string());
+        }
+    }
+    Ok(collapse_ws(&parts.join(" ")))
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────
@@ -282,6 +298,23 @@ mod tests {
         assert!(result.contains("Title"));
         assert!(result.contains("Hello"));
         assert!(result.contains("world"));
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn read_html_skips_script_and_style() {
+        let html = "<html><head><style>.x{color:red}</style>\
+            <script>var secret=1;</script></head>\
+            <body><p>Real article content.</p></body></html>";
+        let tmp = std::env::temp_dir().join("searchbox-test-html-skip.html");
+        std::fs::write(&tmp, html).unwrap();
+        let result = read_html(&tmp).unwrap();
+        assert!(result.contains("Real article content"));
+        assert!(
+            !result.contains("color:red"),
+            "CSS leaked into text: {result}"
+        );
+        assert!(!result.contains("secret"), "JS leaked into text: {result}");
         let _ = std::fs::remove_file(&tmp);
     }
 
