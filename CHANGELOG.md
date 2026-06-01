@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed
+- **Folder- and archive-indexed documents now show their date** and sort
+  correctly under Explore's "Recent" — they were being indexed with no date
+  field (only uploads had one), so they showed "Indexed: Unknown".
+- **qBittorrent sync no longer re-indexes everything on every run** — it now
+  indexes only newly-completed torrents, instead of re-spawning an indexing
+  job for every completed torrent on each sync.
+
+### Changed
+- Docs: the README now lists ZIP/ZIM archive indexing (it still claimed ZIM
+  "returns 501", long since shipped); AGENTS.md "Pending work" refreshed.
+
 ## 0.2.8 — 2026-06-01
 
 ### Fixed

@@ -128,8 +128,17 @@ pub async fn index_folder_task(
             let file_type = d.file_type.clone().unwrap_or_default();
             let is_image = thumbnail::is_image_ext(&file_type);
             // Use metadata() rather than the DirEntry's cached value so
-            // symlinks resolve. 0 on error keeps the JSON shape stable.
-            let file_size = std::fs::metadata(&chunk[i]).map(|m| m.len()).unwrap_or(0);
+            // symlinks resolve. Reused for both size and the indexed date.
+            let meta = std::fs::metadata(&chunk[i]).ok();
+            let file_size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            // Date shown in the viewer + used for Explore's "sort by recent".
+            // Prefer the file's modified time (stable across re-syncs); fall
+            // back to now. Mirrors the upload handler's `uploaded_at`.
+            let uploaded_at = meta
+                .as_ref()
+                .and_then(|m| m.modified().ok())
+                .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339())
+                .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
             // Best-effort thumbnail for supported image types. Failures are
             // logged and the doc still indexes.
@@ -157,6 +166,7 @@ pub async fn index_folder_task(
                 "file_path":   file_path,
                 "file_type":   file_type,
                 "file_size":   file_size,
+                "uploaded_at": uploaded_at,
                 "content":     d.content.clone().unwrap_or_default(),
                 "source":      source,
                 "is_image":    is_image,

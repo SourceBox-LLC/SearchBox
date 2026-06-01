@@ -22,6 +22,7 @@ Free, open source, and yours to keep.
 | 🔎 **Search everything** | Type a word or phrase; SearchBox searches the *contents* of your files, not just their names. |
 | ✨ **Forgiving search** | Typos are fine — it still finds what you meant. |
 | 📂 **Point it at a folder** | Pick any folder and SearchBox reads everything inside so it's all searchable. |
+| 📚 **Index ZIP & ZIM archives** | Point it at a `.zip` or an offline-Wikipedia `.zim` (Kiwix) and it reads everything inside — searchable and browsable like a folder, articles and all. |
 | 🗂️ **Open files in the app** | Read PDFs, Word docs, and notes right inside SearchBox. |
 | 🖼️ **Browse your images** | A built-in gallery and an "Explore" view to flip through everything visually. |
 | 🔒 **Private vault** | Upload sensitive files and lock them behind your password — encrypted on disk. |
@@ -243,9 +244,6 @@ from the Settings page.
 ├── wix/           # Windows MSI installer
 ├── Dockerfile, docker-compose.yml, fly.toml, entrypoint.sh
 ```
-
-**Not yet supported:** indexing offline Wikipedia (ZIM) archives — the
-endpoints return `501` pending a Rust libzim binding.
 
 </details>
 

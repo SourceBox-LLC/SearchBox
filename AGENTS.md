@@ -115,4 +115,8 @@ SEARCHBOX_PORT=8080 cargo run
 
 ## Pending work
 
-See the **Known follow-ups** section in `README.md`.
+Shipped history is in `CHANGELOG.md`. Open follow-ups (non-blocking): bundle the
+WebView2 Evergreen runtime in the MSI (`wix/`; see `BUILD.md`), optional MSI
+code-signing (`WINDOWS_CERT_*` secrets), and relative-asset/link rendering for
+ZIP-archived web pages (ZIM articles already render fully via the on-demand
+`/api/zim/content/<archive>/<url>` endpoint).

@@ -275,10 +275,13 @@ async fn sync_torrents(
             added += 1;
         }
 
-        // Index the save_path as a folder if it's a valid directory.
-        // This pipes torrent file contents through the folder indexer
-        // so their text becomes searchable.
-        if !save_path.is_empty() && std::path::Path::new(save_path).is_dir() {
+        // Index newly-added torrents only — a completed torrent's files don't
+        // change, so re-syncing shouldn't re-index (and re-spawn a job for)
+        // everything every time. Pipes the save_path through the folder indexer.
+        if !known.contains(hash)
+            && !save_path.is_empty()
+            && std::path::Path::new(save_path).is_dir()
+        {
             let meili = match Meili::from_settings(&state.db).await {
                 Ok(m) => m,
                 Err(e) => {
