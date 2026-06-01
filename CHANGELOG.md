@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.8 — 2026-06-01
+
 ### Fixed
 - **Removing an indexed folder or archive now works on Windows.** The remove
   button passed the path through an inline-`onclick` JavaScript string, which
