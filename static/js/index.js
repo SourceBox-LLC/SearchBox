@@ -1863,11 +1863,15 @@
         loadDocuments();
       } else if (data.status === 'failed') {
         stopArchivePolling();
+        // The job stores the real cause in `errors[]`; surface it instead of a
+        // generic message so failures (bad path, unreadable archive, …) are
+        // actually diagnosable.
+        const reason = (data.errors && data.errors[0]) || data.error || 'Indexing failed';
         archiveStatus.className = 'index-status error';
-        archiveStatus.textContent = data.error || 'Indexing failed';
+        archiveStatus.textContent = reason;
         indexArchiveBtn.innerHTML = archiveBtnOriginalHTML;
         indexArchiveBtn.disabled = false;
-        addNotification('error', 'Indexing Failed', data.error || 'Indexing failed');
+        addNotification('error', 'Indexing Failed', reason);
         _hideGlobalBanner();
       }
     }

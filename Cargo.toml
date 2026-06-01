@@ -104,3 +104,9 @@ upgrade-guid = "9B4E2E71-7B51-4E3E-9D6B-2C41FA8B8F1B"
 path-guid = "C6B7D6C0-5A09-4B4B-9C62-8B8F5C1F5E2D"
 license = false
 eula = false
+
+# The upstream `zim` crate (0.4.0) is unmaintained and overflows/panics opening
+# modern (libzim 6.1+) ZIM files — it mis-parses the now-sentinel `titlePtrPos`.
+# Pull in a slim, patched copy from vendor/zim instead (see vendor/zim/Cargo.toml).
+[patch.crates-io]
+zim = { path = "vendor/zim" }
