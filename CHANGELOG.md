@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.3.1 — 2026-06-01
+
+### Fixed
+- **ZIM indexing failed on real Wikipedia archives.** The bundled ZIM reader
+  (`zim` 0.4.0) overflowed opening modern (libzim 6.1+) ZIM files, so indexing a
+  genuine Wikipedia dump silently failed. SearchBox now uses a patched copy of
+  the reader and opens them correctly (verified on a 313 MB Wikipedia archive).
+- **"Browse" buttons did nothing on Windows.** Picking a folder or a `.zim`/
+  `.zip` file now opens a real native file dialog instead of requiring you to
+  type the full path by hand.
+- **Indexing errors are now legible.** A failed archive index shows the actual
+  reason (bad path, unreadable file, …) instead of a generic "Indexing failed".
+
 ## 0.3.0 — 2026-06-01
 
 ### Added
