@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+- Internal: removed ~510 lines of dead SaaS code (subscription, team
+  management, invite modal, billing portal, and "upgrade to cloud" UI) from
+  `settings.js` and `settings.css`. It referenced endpoints and DOM elements
+  that don't exist in the local-first app, so nothing changes for users.
+
 ## 0.2.7 — 2026-05-30
 
 ### Added
