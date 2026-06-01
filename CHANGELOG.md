@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.3.2 — 2026-06-01
+
+### Fixed
+- **Settings → Search Engine now works.** The panel was stuck on "Checking…"
+  with non-working buttons; it now shows live Meilisearch status, version, and
+  document count, and the Start / Stop / Clear Index buttons function.
+- **Cleaner search results.** Result titles drop the file extension and turn
+  underscores into spaces (so a Wikipedia article reads "Washington, D.C."
+  rather than "Washington,_D.C..html"), and indexed text no longer includes a
+  page's CSS/JavaScript — so snippets show real article text. (Re-index via
+  Settings → Clear Index to clean up archives indexed before this release.)
+
 ## 0.3.1 — 2026-06-01
 
 ### Fixed
