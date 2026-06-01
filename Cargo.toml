@@ -86,6 +86,9 @@ winresource = "0.1"
 [target.'cfg(windows)'.dependencies]
 tao = "0.30"
 wry = "0.46"
+# Native file/open-folder dialogs for the desktop "Browse" buttons. Windows-only
+# (the desktop build); the Axum picker endpoint is cfg-gated to match.
+rfd = "0.15"
 
 [profile.release]
 lto = "thin"

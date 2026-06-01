@@ -1477,29 +1477,28 @@
     const indexFolderBtn = document.getElementById('index-folder-btn');
     const indexStatus = document.getElementById('index-status');
 
-    // Browse button - uses File System Access API if available
+    // Browse button — asks the backend to open a native folder dialog. A web
+    // page can't read a real local path (showDirectoryPicker only exposes the
+    // folder name), so the desktop app opens the dialog server-side. Falls back
+    // to manual entry when the native picker isn't available (plain server).
     folderBrowseBtn.addEventListener('click', async () => {
-      if ('showDirectoryPicker' in window) {
-        try {
-          const dirHandle = await window.showDirectoryPicker();
-          // For local apps, we need the user to provide the full path
-          // The API only gives us the folder name, not the full path
-          const folderName = dirHandle.name;
+      try {
+        const resp = await fetch('/api/pick?kind=folder');
+        const data = await resp.json();
+        if (resp.ok && data.path) {
+          folderPathInput.value = data.path;
           indexStatus.className = 'index-status';
-          indexStatus.innerHTML = `Selected: <strong>${folderName}</strong><br><small>Enter the full path to this folder above</small>`;
-          folderPathInput.focus();
-        } catch (err) {
-          // User cancelled the picker
-          if (err.name !== 'AbortError') {
-            console.error('Folder picker error:', err);
-          }
+          indexStatus.textContent = '';
+        } else if (!resp.ok) {
+          indexStatus.className = 'index-status';
+          indexStatus.textContent = data.error || 'Type the full folder path manually (e.g. C:\\Users\\you\\Documents)';
         }
-      } else {
-        // Fallback for browsers without File System Access API
+        // data.path === null → user cancelled the dialog; leave the field as-is.
+      } catch (e) {
         indexStatus.className = 'index-status';
-        indexStatus.textContent = 'Please type the full folder path manually (e.g., /home/user/Documents)';
-        folderPathInput.focus();
+        indexStatus.textContent = 'Type the full folder path manually (e.g. C:\\Users\\you\\Documents)';
       }
+      folderPathInput.focus();
     });
 
     const indexBtnOriginalHTML = indexFolderBtn.innerHTML;
@@ -1790,8 +1789,22 @@
     const archiveStatus = document.getElementById('archive-index-status');
     const indexedArchivesList = document.getElementById('indexed-archives-list');
 
-    archiveBrowseBtn.addEventListener('click', () => {
-      if (!_activeArchiveJobId) {
+    archiveBrowseBtn.addEventListener('click', async () => {
+      // Ask the backend to open a native file dialog — a web page can't read a
+      // real local path. Falls back to manual entry on non-desktop deployments.
+      try {
+        const resp = await fetch('/api/pick?kind=archive');
+        const data = await resp.json();
+        if (resp.ok && data.path) {
+          archivePathInput.value = data.path;
+          archiveStatus.className = 'index-status';
+          archiveStatus.textContent = '';
+        } else if (!resp.ok) {
+          archiveStatus.className = 'index-status';
+          archiveStatus.textContent = data.error || 'Enter the full path to a .zim or .zip file above';
+        }
+        // data.path === null → user cancelled the dialog; leave the field as-is.
+      } catch (e) {
         archiveStatus.className = 'index-status';
         archiveStatus.textContent = 'Enter the full path to a .zim or .zip file above';
       }
