@@ -3877,3 +3877,18 @@
       }
     });
     });
+
+// Opt-in update check on startup — notifies once if a newer version exists. The
+// preference is local (localStorage); the app makes no request unless enabled.
+window.addEventListener('load', () => {
+  if (localStorage.getItem('autoUpdateCheck') !== 'true') return;
+  fetch('/api/update/check')
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => {
+      if (d && d.update_available && typeof addNotification === 'function') {
+        addNotification('info', 'Update available',
+          `SearchBox v${d.latest} is available (you have v${d.current}). Open Settings -> About to update.`);
+      }
+    })
+    .catch(() => {});
+});

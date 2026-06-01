@@ -340,6 +340,74 @@ if (signOutBtn) {
   });
 }
 
+// ── Software updates ──────────────────────────────────────────────────────
+function initUpdates() {
+  const versionEl = document.getElementById('app-version');
+  const statusEl = document.getElementById('update-status');
+  const checkBtn = document.getElementById('check-update-btn');
+  const applyBtn = document.getElementById('apply-update-btn');
+  const autoToggle = document.getElementById('auto-update-toggle');
+  if (!checkBtn || !statusEl) return;
+
+  // This build's version — local, no network.
+  fetch('/api/version')
+    .then(r => r.json())
+    .then(d => { if (versionEl && d.version) versionEl.textContent = 'v' + d.version; })
+    .catch(() => {});
+
+  // The auto-check preference is a local UI setting (so the app stays silent
+  // unless the user opts in) — see index.js for the on-startup check.
+  if (autoToggle) {
+    autoToggle.checked = localStorage.getItem('autoUpdateCheck') === 'true';
+    autoToggle.addEventListener('change', () => {
+      localStorage.setItem('autoUpdateCheck', autoToggle.checked ? 'true' : 'false');
+    });
+  }
+
+  async function check() {
+    statusEl.textContent = 'Checking…';
+    applyBtn.style.display = 'none';
+    try {
+      const resp = await fetch('/api/update/check');
+      if (!resp.ok) throw new Error('check failed');
+      const d = await resp.json();
+      if (d.update_available) {
+        statusEl.innerHTML = `Version <strong>v${d.latest}</strong> is available ` +
+          `(you have v${d.current}). <a href="${d.release_url}" target="_blank" rel="noopener">Release notes</a>`;
+        // Only offer in-app install when the release ships an installer for this platform.
+        applyBtn.style.display = d.download_url ? '' : 'none';
+      } else {
+        statusEl.textContent = `You're up to date (v${d.current}).`;
+      }
+    } catch (e) {
+      statusEl.textContent = 'Could not check for updates (no connection, or GitHub rate-limited).';
+    }
+  }
+  checkBtn.addEventListener('click', check);
+
+  applyBtn.addEventListener('click', async () => {
+    applyBtn.disabled = true;
+    statusEl.textContent = 'Downloading the installer…';
+    try {
+      const resp = await authFetch('/api/update/apply', { method: 'POST' });
+      const d = await resp.json();
+      if (resp.ok) {
+        statusEl.textContent = 'The installer is opening — follow its prompts. SearchBox will close to finish updating.';
+      } else {
+        statusEl.textContent = d.error || 'Update failed.';
+        applyBtn.disabled = false;
+      }
+    } catch (e) {
+      statusEl.textContent = 'Update failed (could not reach the server).';
+      applyBtn.disabled = false;
+    }
+  });
+
+  // If auto-check is enabled, also check as soon as this page opens.
+  if (autoToggle && autoToggle.checked) check();
+}
+
 // Initialize
 loadUserInfo();
 loadIndexedFolders();
+initUpdates();

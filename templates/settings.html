@@ -698,7 +698,7 @@
         <div class="about-grid">
           <div class="about-item">
             <span class="about-label">Version</span>
-            <span class="about-value">v0.1.0</span>
+            <span class="about-value" id="app-version">v—</span>
           </div>
           <div class="about-item">
             <span class="about-label">Encryption</span>
@@ -711,6 +711,28 @@
           <div class="about-item">
             <span class="about-label">License</span>
             <span class="about-value">Open Source</span>
+          </div>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Automatically check for updates</h3>
+            <p>On startup, check GitHub for a newer version. Off by default —
+              nothing is sent anywhere until you turn this on or check manually.</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="auto-update-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="settings-info">
+            <h3>Software updates</h3>
+            <p id="update-status">Check for a newer release on demand.</p>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="btn btn-secondary btn-small" id="check-update-btn" type="button">Check for updates</button>
+            <button class="btn btn-primary btn-small" id="apply-update-btn" type="button" style="display:none;">Update now</button>
           </div>
         </div>
       </div>

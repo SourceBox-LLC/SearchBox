@@ -8,6 +8,7 @@ pub mod ollama;
 pub mod pages;
 pub mod qbittorrent;
 pub mod settings;
+pub mod update;
 pub mod vault;
 
 use axum::Router;
@@ -27,5 +28,6 @@ pub fn router(state: AppState) -> Router {
         .merge(vault::routes())
         .merge(ollama::routes())
         .merge(qbittorrent::routes())
+        .merge(update::routes())
         .with_state(state)
 }

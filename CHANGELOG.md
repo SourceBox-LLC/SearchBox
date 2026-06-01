@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added
+- **Update checking & in-app update.** Settings → About now shows your version,
+  a "Check for updates" button, and an opt-in "automatically check on startup"
+  toggle. When a newer release exists it links to the notes and (on the Windows
+  MSI build) offers "Update now" — downloading the new installer and launching
+  it. The app contacts GitHub only when you enable auto-check or check manually,
+  keeping the "nothing leaves your machine by default" promise.
+
 ## 0.2.9 — 2026-06-01
 
 ### Added
