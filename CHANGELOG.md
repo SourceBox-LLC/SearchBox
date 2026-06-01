@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.3 — 2026-06-01
+
+### Added
+- **Image gallery on the results page.** Searching now shows a sidebar of images
+  relevant to your query (a dedicated image search), with **View More** opening
+  the full image search. ZIM archives now also index their images — previously
+  only article text was indexed — so a Wikipedia archive fills the gallery. To
+  pick up images from a ZIM you already indexed, re-index it (Settings → Clear
+  Index, then add it again).
+
 ## 0.3.2 — 2026-06-01
 
 ### Fixed
