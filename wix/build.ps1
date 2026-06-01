@@ -19,7 +19,10 @@
 param(
   # CI uses this to keep a pre-signed searchbox.exe around — calling
   # cargo build again would unsign it. Local devs leave this off.
-  [switch]$SkipBuild
+  [switch]$SkipBuild,
+
+  # Rust target triple. Defaults to x64; CI passes aarch64 for the ARM64 MSI.
+  [string]$Target = 'x86_64-pc-windows-msvc'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,21 +85,24 @@ $body = (Get-Content -Path $LicenseSrc -Raw) `
 
 if ($SkipBuild) {
   Write-Host "==> -SkipBuild: reusing existing searchbox.exe"
-  $exe = Join-Path $RepoRoot 'target\x86_64-pc-windows-msvc\release\searchbox.exe'
+  $exe = Join-Path $RepoRoot "target\$Target\release\searchbox.exe"
   if (-not (Test-Path $exe)) { throw "-SkipBuild set but $exe is missing" }
 } else {
-  Write-Host "==> cargo build --release"
-  cargo build --release --target x86_64-pc-windows-msvc
+  Write-Host "==> cargo build --release --target $Target"
+  cargo build --release --target $Target
   if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 }
 
-Write-Host "==> cargo wix"
-# -v makes the WiX invocation visible; drop it once you've verified
-# the build. --target forces the same triple as the build above so
-# cargo-wix finds target\x86_64-pc-windows-msvc\release\searchbox.exe.
-# cargo-wix auto-loads WixUIExtension *and* WixUtilExtension — don't
-# pass them via -C/-L or candle errors with a duplicate-namespace load.
-cargo wix --no-build --nocapture --target x86_64-pc-windows-msvc -v
+# MSI platform follows the build target. main.wxs reads it as $(var.Platform);
+# WiX >= 3.14 is required to build an arm64 MSI.
+$Platform = if ($Target -like 'aarch64*') { 'arm64' } else { 'x64' }
+
+Write-Host "==> cargo wix (Platform=$Platform)"
+# -v makes the WiX invocation visible. --target forces the same triple as the
+# build above so cargo-wix finds target\$Target\release\searchbox.exe.
+# cargo-wix auto-loads WixUIExtension *and* WixUtilExtension — don't pass them
+# via -C/-L or candle errors with a duplicate-namespace load.
+cargo wix --no-build --nocapture --target $Target -C "-dPlatform=$Platform" -v
 if ($LASTEXITCODE -ne 0) { throw "cargo wix failed" }
 
 $MsiOut = Get-ChildItem -Path (Join-Path $RepoRoot 'target\wix') -Filter '*.msi' -ErrorAction SilentlyContinue | Select-Object -First 1

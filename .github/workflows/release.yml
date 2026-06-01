@@ -1,7 +1,8 @@
-# Build the Windows MSI installer and publish it to a GitHub Release on
-# every version tag (e.g. `git tag v1.0.0 && git push --tags`).
-# End users never touch PowerShell — they go to the Releases page and
-# download `SearchBox-<version>-x86_64.msi`.
+# Build the Windows MSI installer(s) and publish them to a GitHub Release on
+# every version tag (e.g. `git tag v1.0.0 && git push --tags`). Builds both
+# x64 and ARM64; `fail-fast: false` means an ARM64 hiccup never blocks the x64
+# release. End users go to the Releases page and download the MSI for their
+# architecture (`...-x86_64.msi` or `...-aarch64.msi`).
 
 name: release
 
@@ -14,8 +15,8 @@ on:
   push:
     tags:
       - 'v*'
-  # Also allow manual dry-runs from the Actions tab — useful for
-  # verifying the pipeline without cutting a real release.
+  # Also allow manual dry-runs from the Actions tab — useful for verifying the
+  # pipeline (incl. the ARM64 cross-build) without cutting a real release.
   workflow_dispatch:
 
 permissions:
@@ -23,21 +24,26 @@ permissions:
 
 jobs:
   windows-msi:
-    name: Build Windows MSI
+    name: Build ${{ matrix.arch }} MSI
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (stable, x86_64-pc-windows-msvc)
+      - name: Install Rust (${{ matrix.target }})
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: ${{ matrix.target }}
 
-      # WiX 3 ships on the GitHub-hosted Windows runner image, so we
-      # don't need to install it. `candle.exe` and `light.exe` come
-      # from `C:\Program Files (x86)\WiX Toolset v3.*\bin` which is
-      # already on PATH per the image docs:
-      # https://github.com/actions/runner-images/blob/main/images/windows/Windows2022-Readme.md
+      # WiX 3 ships on the GitHub-hosted Windows runner image (ARM64 MSI support
+      # needs WiX >= 3.14 — print the version so a dry-run can confirm).
       - name: Verify WiX toolset on PATH
         shell: pwsh
         run: |
@@ -50,13 +56,13 @@ jobs:
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.arch }}  # keep x64 and arm64 caches separate
 
       # Decode the optional code-signing certificate. When the
-      # `WINDOWS_CERT_BASE64` secret is unset (open-source fork with no
-      # cert), the step writes an empty `pfx` output and the subsequent
-      # sign steps skip via `if: steps.cert.outputs.pfx != ''`. With it
-      # set, a .pfx is written to a RUNNER_TEMP path that nothing else
-      # can read, and the cleanup step at the end scrubs it.
+      # `WINDOWS_CERT_BASE64` secret is unset (open-source fork with no cert),
+      # the step writes an empty `pfx` output and the sign steps skip via
+      # `if: steps.cert.outputs.pfx != ''`.
       - name: Stage code-signing cert
         id: cert
         shell: pwsh
@@ -71,13 +77,13 @@ jobs:
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
           "pfx=$pfx" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
-      - name: Build release binary
+      - name: Build release binary (${{ matrix.target }})
         shell: pwsh
-        run: cargo build --release --target x86_64-pc-windows-msvc
+        run: cargo build --release --target ${{ matrix.target }}
 
-      # Locate signtool.exe once — the Windows SDK version on the
-      # hosted runner image changes, so we find the newest bin dir
-      # dynamically rather than hardcoding a path.
+      # Locate signtool.exe once — the Windows SDK version on the hosted runner
+      # changes, so find the newest x64 bin dir dynamically (the x64 signtool
+      # signs binaries of any target architecture).
       - name: Find signtool
         id: signtool
         if: steps.cert.outputs.pfx != ''
@@ -91,8 +97,6 @@ jobs:
           if ($null -eq $st) { throw "signtool.exe not found under $sdk" }
           "path=$($st.FullName)" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
 
-      # Sign the .exe before it lands in the MSI so the installed
-      # binary carries our signature too, not just the wrapper.
       - name: Sign searchbox.exe
         if: steps.cert.outputs.pfx != ''
         shell: pwsh
@@ -103,14 +107,13 @@ jobs:
             /f "${{ steps.cert.outputs.pfx }}" `
             /p "$env:WINDOWS_CERT_PASSWORD" `
             /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
-            target\x86_64-pc-windows-msvc\release\searchbox.exe
+            target\${{ matrix.target }}\release\searchbox.exe
 
       - name: Build MSI
         shell: pwsh
         # We already built (and possibly signed) searchbox.exe above —
-        # -SkipBuild tells the packaging script to reuse it rather than
-        # triggering a recompile that would unsign the binary.
-        run: .\wix\build.ps1 -SkipBuild
+        # -SkipBuild reuses it rather than recompiling (which would unsign it).
+        run: .\wix\build.ps1 -SkipBuild -Target ${{ matrix.target }}
 
       - name: Locate MSI artifact
         id: find_msi
@@ -141,13 +144,13 @@ jobs:
       - name: Upload MSI to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: searchbox-msi
+          name: searchbox-msi-${{ matrix.arch }}
           path: ${{ steps.find_msi.outputs.path }}
           if-no-files-found: error
 
       # Only publish to a Release when the trigger was a tag push.
-      # workflow_dispatch runs skip this step so manual dry-runs don't
-      # create junk releases.
+      # workflow_dispatch runs skip this so manual dry-runs don't make junk
+      # releases. Both matrix legs attach to the same release (files appended).
       - name: Attach MSI to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
