@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.4 — 2026-06-01
+
+### Fixed
+- **Image results no longer show a phantom "Image Load Error" box** beside the
+  working thumbnail (a CSS bug kept the error placeholder permanently visible).
+- **ZIM redirect stubs are no longer indexed.** Wikipedia archives contain tiny
+  redirect/alias pages (e.g. a "Climate of Washington, D.C." entry that only
+  links to the main article); these were showing up as junk results and are now
+  skipped during extraction. Re-index a ZIM to drop ones already indexed.
+
 ## 0.3.3 — 2026-06-01
 
 ### Added
