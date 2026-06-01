@@ -11,10 +11,12 @@
   Settings) and the indexed-archive list.
 
 ### Changed
-- Internal: removed ~510 lines of dead SaaS code (subscription, team
-  management, invite modal, billing portal, and "upgrade to cloud" UI) from
-  `settings.js` and `settings.css`. It referenced endpoints and DOM elements
-  that don't exist in the local-first app, so nothing changes for users.
+- Internal: removed ~950 lines of unreachable dead code left over from dropped
+  features — the multi-tenant SaaS UI (subscription, team, invites, billing,
+  "upgrade to cloud") and the export / import / cloud-sync wizard styling from
+  `settings.js` / `settings.css`, plus the superseded `renderZimArticle()` ZIM
+  viewer (and its dead `/api/zim/article` + `/api/zim/image` calls) from
+  `view.js`. None of it was reachable; no behavior change.
 
 ## 0.2.7 — 2026-05-30
 

@@ -76,18 +76,11 @@ let documentData = null;
       const main = document.getElementById('main-content');
       const config = getFileTypeConfig(documentData.filename);
       const isMarkdown = documentData.file_type === 'md';
-      const isZim = documentData.file_type === 'zim';
       const isHtml = documentData.file_type === 'html' || documentData.file_type === 'htm';
       
       // Add image detection
       if (documentData.is_image) {
         renderImageDocument();
-        return;
-      }
-      
-      // ZIM article — render via dedicated function
-      if (isZim) {
-        renderZimArticle();
         return;
       }
       
@@ -249,145 +242,6 @@ let documentData = null;
       `;
 
       if (isHtml) loadHtml();
-    }
-
-    async function renderZimArticle() {
-      const main = document.getElementById('main-content');
-      const config = { icon: 'ZIM', color: '#2dd4bf', class: 'zim' };
-
-      // Parse zim:// path to extract archive path and article URL
-      const filePath = documentData.file_path || '';
-      const zimMatch = filePath.match(/^zim:\/\/(.+?)#(.+)$/);
-      const zimPath = zimMatch ? zimMatch[1] : '';
-      const articleUrl = zimMatch ? zimMatch[2] : (documentData.zim_article_url || '');
-
-      main.innerHTML = `
-        <div class="document-container">
-          <div class="document-card">
-            <div class="document-header">
-              <div class="document-header-left">
-                <span class="document-type-badge" style="color: ${config.color}; border-color: ${config.color};">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                  </svg>
-                  ${config.icon}
-                </span>
-                <h1 class="document-title">${escapeHtml(documentData.filename)}</h1>
-                <p class="document-path">${escapeHtml(filePath)}</p>
-              </div>
-              <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-                </svg>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="exit-fullscreen-icon" style="display: none;">
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
-                </svg>
-              </button>
-            </div>
-            <div class="document-content" id="document-content">
-              <div class="zim-loading" style="text-align:center; padding:40px; color:#8b949e;">Loading article...</div>
-            </div>
-          </div>
-        </div>
-        <aside class="sidebar">
-          <div class="info-card">
-            <h3>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="16" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12.01" y2="8"/>
-              </svg>
-              Document Info
-            </h3>
-            <div class="info-row"><span class="info-label">Type</span><span class="info-value">ZIM Article</span></div>
-            <div class="info-row"><span class="info-label">Size</span><span class="info-value">${formatFileSize(documentData.file_size)}</span></div>
-            <div class="info-row"><span class="info-label">Source</span><span class="info-value">ZIM Archive</span></div>
-            <div class="info-row"><span class="info-label">Indexed</span><span class="info-value">${formatDate(documentData.uploaded_at)}</span></div>
-          </div>
-        </aside>
-      `;
-
-      // Fetch and render the actual HTML article inside a sandboxed iframe
-      if (zimPath && articleUrl) {
-        try {
-          const resp = await fetch(`/api/zim/article?path=${encodeURIComponent(zimPath)}&url=${encodeURIComponent(articleUrl)}`);
-          if (resp.ok) {
-            let html = await resp.text();
-            // Rewrite image src to use our ZIM image proxy
-            html = html.replace(/src=["']([^"']+)["']/g, (match, src) => {
-              if (src.startsWith('http') || src.startsWith('data:') || src.startsWith('/')) return match;
-              return `src="/api/zim/image?path=${encodeURIComponent(zimPath)}&img=${encodeURIComponent(src)}"`;
-            });
-
-            // Wrap in a full HTML document with dark-theme styling and link interception
-            const iframeDoc = `<!DOCTYPE html>
-<html><head><style>
-  * { box-sizing: border-box; }
-  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; line-height: 1.7; padding: 24px; margin: 0; word-wrap: break-word; }
-  a { color: #2dd4bf; }
-  img { max-width: 100%; height: auto; border-radius: 8px; margin: 12px 0; }
-  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
-  th, td { border: 1px solid #30363d; padding: 8px 12px; text-align: left; }
-  th { background: #161b22; }
-  h1, h2, h3, h4 { color: #f0f6fc; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
-  pre, code { background: #161b22; padding: 2px 6px; border-radius: 4px; overflow-x: auto; }
-  blockquote { border-left: 3px solid #2dd4bf; margin: 16px 0; padding: 8px 16px; color: #8b949e; }
-  .mw-editsection, .noprint, .mw-jump-link, .navbox, .sistersitebox, .mw-authority-control { display: none !important; }
-</style></head><body>${html}</body></html>`;
-
-            const contentEl = document.getElementById('document-content');
-            const iframe = document.createElement('iframe');
-            iframe.sandbox = 'allow-same-origin';
-            iframe.style.cssText = 'width:100%; border:none; min-height:600px;';
-            iframe.srcdoc = iframeDoc;
-            contentEl.innerHTML = '';
-            contentEl.appendChild(iframe);
-
-            // Auto-resize iframe to content height and intercept link clicks
-            iframe.addEventListener('load', () => {
-              try {
-                const idoc = iframe.contentDocument;
-                // Resize to fit content
-                const resizeObserver = new ResizeObserver(() => {
-                  iframe.style.height = idoc.documentElement.scrollHeight + 'px';
-                });
-                resizeObserver.observe(idoc.body);
-                iframe.style.height = idoc.documentElement.scrollHeight + 'px';
-
-                // Intercept all internal link clicks
-                idoc.addEventListener('click', (e) => {
-                  const link = e.target.closest('a');
-                  if (!link) return;
-                  e.preventDefault();
-                  const href = link.getAttribute('href');
-                  if (!href || href.startsWith('#')) return;
-                  if (href.startsWith('http')) {
-                    window.open(href, '_blank');
-                  } else {
-                    const articleName = href.split('#')[0].replace(/_/g, ' ').replace(/\.\.\//g, '');
-                    window.location.href = `/?q=${encodeURIComponent(articleName)}::zim`;
-                  }
-                });
-              } catch (err) {
-                console.warn('Could not access iframe content:', err);
-              }
-            });
-          } else {
-            // Fallback to indexed text content
-            document.getElementById('document-content').innerHTML = `
-              <pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>`;
-          }
-        } catch (e) {
-          console.error('Error loading ZIM article:', e);
-          document.getElementById('document-content').innerHTML = `
-            <pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>`;
-        }
-      } else {
-        // No ZIM path info, show indexed text
-        document.getElementById('document-content').innerHTML = `
-          <pre class="content-text">${escapeHtml(documentData.content || 'No content available')}</pre>`;
-      }
     }
 
     // Render an indexed .html/.htm file as an actual page in a sandboxed iframe.
