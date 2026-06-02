@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.3.5 — 2026-06-01
+
+### Fixed
+- **Removing an indexed archive now actually clears its documents.** The purge
+  filtered on a field Meilisearch wasn't configured to filter on, so it silently
+  did nothing — leaving stale entries (e.g. ZIM redirect stubs) in search even
+  after re-indexing. Remove/re-add an archive to clean it up; an existing index
+  can also be wiped with Settings → Clear Index.
+- **More ZIM redirect/navigation stubs are skipped** during indexing — a minimum
+  article size on top of the existing `<meta refresh>` detection.
+
 ## 0.3.4 — 2026-06-01
 
 ### Fixed
