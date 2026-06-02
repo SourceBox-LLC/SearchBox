@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.12 — 2026-06-01
+
+### Fixed
+- **AI Search settings were unreachable.** The Settings → AI Search panel
+  (enable toggle, Ollama server URL / model / timeout, auto-connect, Test
+  Connection, model list) had no JavaScript wired to it, so AI search couldn't
+  be configured or turned on from the UI at all. Implemented the panel (mirrors
+  the Search Engine panel). The backend Ollama client and the search-page AI
+  summary already worked once AI is enabled and connected.
+
 ## 0.3.11 — 2026-06-01
 
 ### Fixed

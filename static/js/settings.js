@@ -512,8 +512,121 @@ function initMeili() {
   loadStatus();
 }
 
+// ── AI Search (Ollama) ────────────────────────────────────────────────────
+function initOllama() {
+  const aiToggle = document.getElementById('ai-search-toggle');
+  const ollamaSettings = document.getElementById('ollama-settings');
+  const urlInput = document.getElementById('ollama-url');
+  const modelInput = document.getElementById('ollama-model');
+  const timeoutInput = document.getElementById('ollama-timeout');
+  const autoconnect = document.getElementById('ollama-autoconnect');
+  const statusText = document.getElementById('ollama-status-text');
+  const statusDot = document.getElementById('ollama-status-dot');
+  const testBtn = document.getElementById('test-ollama-btn');
+  const modelsText = document.getElementById('ollama-models-text');
+  const refreshBtn = document.getElementById('refresh-models-btn');
+  if (!aiToggle) return;
+
+  const showOllama = () => {
+    if (ollamaSettings) ollamaSettings.style.display = aiToggle.checked ? '' : 'none';
+  };
+
+  async function saveConfig(patch) {
+    try {
+      await authFetch('/api/meilisearch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    } catch (e) { /* non-fatal */ }
+  }
+
+  async function loadConfig() {
+    try {
+      const d = await (await fetch('/api/meilisearch/config')).json();
+      if (urlInput && d.ollama_url) urlInput.value = d.ollama_url;
+      if (modelInput && d.ollama_model) modelInput.value = d.ollama_model;
+      aiToggle.checked = !!d.ai_search_enabled;
+    } catch (e) { /* keep template defaults */ }
+    showOllama();
+  }
+
+  async function loadStatus() {
+    try {
+      const d = await (await fetch('/api/ollama/status')).json();
+      if (autoconnect) autoconnect.checked = !!d.autoconnect;
+      const connected = !!d.connected;
+      if (statusDot) statusDot.className = 'status-dot ' + (connected ? 'running' : (d.enabled ? 'stopped' : 'checking'));
+      if (statusText) {
+        statusText.textContent = !d.enabled
+          ? 'AI Search is disabled'
+          : (connected ? `Connected${d.configured_model ? ' · ' + d.configured_model : ''}` : 'Not connected — is Ollama running?');
+      }
+      if (modelsText) {
+        const models = d.available_models || [];
+        modelsText.textContent = models.length ? models.join(', ') : (connected ? 'No models installed (e.g. run: ollama pull llama3)' : '—');
+      }
+    } catch (e) {
+      if (statusText) statusText.textContent = 'Status unavailable';
+    }
+  }
+
+  const saveOllama = () => saveConfig({
+    ollama_url: urlInput ? urlInput.value.trim() : undefined,
+    ollama_model: modelInput ? modelInput.value.trim() : undefined,
+    ollama_timeout: timeoutInput ? timeoutInput.value.trim() : undefined,
+    ollama_autoconnect: autoconnect ? autoconnect.checked : undefined,
+  });
+
+  aiToggle.addEventListener('change', async () => {
+    showOllama();
+    await saveConfig({ ai_search_enabled: aiToggle.checked });
+    loadStatus();
+  });
+  [urlInput, modelInput, timeoutInput].forEach((el) => el && el.addEventListener('change', saveOllama));
+  if (autoconnect) autoconnect.addEventListener('change', saveOllama);
+
+  if (testBtn) testBtn.addEventListener('click', async () => {
+    testBtn.disabled = true;
+    if (statusText) statusText.textContent = 'Testing…';
+    await saveOllama();
+    try {
+      const resp = await authFetch('/api/ollama/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: urlInput ? urlInput.value.trim() : undefined,
+          timeout: timeoutInput ? (Number(timeoutInput.value) || undefined) : undefined,
+        }),
+      });
+      const d = await resp.json();
+      if (statusDot) statusDot.className = 'status-dot ' + (d.connected ? 'running' : 'stopped');
+      if (statusText) statusText.textContent = d.connected ? 'Connected' : 'Not connected — is Ollama running at that URL?';
+    } catch (e) {
+      if (statusText) statusText.textContent = 'Test failed (could not reach the server)';
+    }
+    testBtn.disabled = false;
+    loadStatus();
+  });
+
+  if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    if (modelsText) modelsText.textContent = 'Loading models…';
+    try {
+      const d = await (await fetch('/api/ollama/models')).json();
+      const models = d.models || [];
+      if (modelsText) modelsText.textContent = models.length ? models.join(', ') : 'No models installed (e.g. run: ollama pull llama3)';
+    } catch (e) {
+      if (modelsText) modelsText.textContent = 'Could not list models';
+    }
+  });
+
+  loadConfig();
+  loadStatus();
+}
+
 // Initialize
 loadUserInfo();
 loadIndexedFolders();
 initUpdates();
 initMeili();
+initOllama();
