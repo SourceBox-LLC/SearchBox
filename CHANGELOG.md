@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.3.8 — 2026-06-01
+
+### Changed
+- **Image files no longer clutter the main search results.** Standalone images
+  (e.g. extracted from indexed ZIM archives) were showing up as link-style
+  entries among the article results; they now live only in the right-hand image
+  gallery. You can still search images directly with `::image` or a file-type
+  filter.
+
+## 0.3.7 — 2026-06-01
+
+### Fixed
+- ZIM extraction skips tiny decorative images (flag/icon/glyph thumbnails), and
+  the startup sweep also removes such images from existing indexes.
+
 ## 0.3.6 — 2026-06-01
 
 ### Fixed

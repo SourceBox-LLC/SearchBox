@@ -772,6 +772,14 @@
             const fileType = parsedQuery.fileFilter.replace(/^\./, '');
             searchFilter = `file_type = "${fileType}"`;
           }
+          // No explicit filter → keep standalone image files OUT of the main
+          // results list. They clutter it as link-style entries; images are
+          // surfaced in the right-hand gallery instead (which opens them as
+          // images, not webpage-style results). `::image` / a file-type filter
+          // still let you search images directly.
+          else {
+            searchFilter = 'is_image = false';
+          }
           searchQuery = parsedQuery.searchText === "*" ? "" : parsedQuery.searchText;
           
           // Debug logging
