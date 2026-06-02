@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.11 — 2026-06-01
+
+### Fixed
+- **Search-result display polish.** Meilisearch match highlights now render as
+  highlights in result snippets instead of literal `<em>…</em>` text, and image
+  titles decode percent-encoding (e.g. `Washington%2C D.C.` → `Washington, D.C.`).
+
 ## 0.3.10 — 2026-06-01
 
 ### Fixed

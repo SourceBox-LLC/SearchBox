@@ -862,16 +862,26 @@
         // Clean, human-friendly heading: drop the file extension and turn the
         // underscores in ZIM/web-page article filenames into spaces. Any <em>
         // search-highlight tags from Meilisearch are preserved.
-        const displayTitle = (result.filename || '')
-          .replace(/\.[A-Za-z0-9]{1,8}$/, '')
-          .replace(/_/g, ' ');
-        // Escape HTML content to prevent rendering issues
+        let displayTitle = (result.filename || '').replace(/\.[A-Za-z0-9]{1,8}$/, '');
+        // Decode percent-encoding (ZIM image names like "…%2C…" → "…,…") before
+        // turning underscores into spaces. Meilisearch <em> highlights survive.
+        try {
+          displayTitle = decodeURIComponent(displayTitle);
+        } catch (e) {
+          /* malformed escape — keep the raw name */
+        }
+        displayTitle = displayTitle.replace(/_/g, ' ');
+        // Escape HTML content, then restore Meilisearch's <em> match-highlight
+        // tags so matches render as highlights instead of literal "<em>" text.
         const escapeHtml = (text) => {
           const div = document.createElement('div');
           div.textContent = text;
           return div.innerHTML;
         };
-        const snippet = result.content.length > 300 ? escapeHtml(result.content.substring(0, 300)) + '...' : escapeHtml(result.content);
+        const highlight = (text) => escapeHtml(text)
+          .replace(/&lt;em&gt;/g, '<em>')
+          .replace(/&lt;\/em&gt;/g, '</em>');
+        const snippet = result.content.length > 300 ? highlight(result.content.substring(0, 300)) + '...' : highlight(result.content);
         const isVault = result.source === 'vault';
         const isQBT = result.source === 'qbittorrent';
         const isZim = result.source === 'zim';
