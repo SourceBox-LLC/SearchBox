@@ -1,7 +1,7 @@
 //! `/api/ollama/*` + `/api/search/summary*` — Ollama control + RAG.
 
 use axum::body::Body;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Json, Response};
 use axum::routing::{get, post};
@@ -117,18 +117,40 @@ async fn pull(
     Ok(Json(json!({ "success": true })))
 }
 
-async fn recommendations(State(state): State<AppState>, _: CurrentUser) -> AppResult<Json<Value>> {
+#[derive(Deserialize)]
+struct RecQuery {
+    /// JSON array of the user's recent searches, sent by the frontend when
+    /// history enhancement is enabled.
+    history: Option<String>,
+}
+
+async fn recommendations(
+    State(state): State<AppState>,
+    _: CurrentUser,
+    Query(q): Query<RecQuery>,
+) -> AppResult<Json<Value>> {
     let enabled = ai_enabled(&state).await?;
-    if !enabled {
-        return Ok(Json(json!({
-            "success": true,
-            "recommendations": fallback_recommendations(),
-            "model_used": null,
-            "enhanced": false,
-        })));
+    let history: Vec<String> = q
+        .history
+        .as_deref()
+        .and_then(|h| serde_json::from_str::<Vec<String>>(h).ok())
+        .unwrap_or_default();
+
+    // Personalize only when AI is on AND there's history to learn from —
+    // otherwise fall back to the static starter set.
+    if enabled && !history.is_empty() {
+        let o = Ollama::from_settings(&state.db).await?;
+        if let Ok(recs) = o.recommend_from_history(&history).await {
+            if !recs.is_empty() {
+                return Ok(Json(json!({
+                    "success": true,
+                    "recommendations": recs,
+                    "model_used": o.model,
+                    "enhanced": true,
+                })));
+            }
+        }
     }
-    // TODO: when AI is on, generate recs from search history instead of
-    // falling through to the static list.
     Ok(Json(json!({
         "success": true,
         "recommendations": fallback_recommendations(),

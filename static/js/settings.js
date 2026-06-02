@@ -670,6 +670,69 @@ function initGlobalSave() {
   });
 }
 
+// ── Search History panel ──────────────────────────────────────────────────
+function initSearchHistory() {
+  const toggle = document.getElementById('ai-history-enhancement');
+  const list = document.getElementById('recent-searches-list');
+  const clearBtn = document.getElementById('clear-search-history');
+  if (!toggle && !list && !clearBtn) return;
+  const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+  function render(history) {
+    if (!list) return;
+    if (!history || history.length === 0) {
+      list.innerHTML = '<p class="search-history-empty">No recent searches yet — your searches will show up here.</p>';
+      return;
+    }
+    list.innerHTML = history.map((q) => `<div class="search-history-item">${esc(q)}</div>`).join('');
+  }
+
+  async function loadHistory() {
+    try {
+      const d = await (await fetch('/api/settings/search-history')).json();
+      render(d.history || []);
+    } catch (e) {
+      if (list) list.innerHTML = '<p class="search-history-empty">Could not load search history.</p>';
+    }
+  }
+
+  async function loadToggle() {
+    if (!toggle) return;
+    try {
+      const d = await (await fetch('/api/settings/ai-enhancement')).json();
+      toggle.checked = d.enabled !== false;
+    } catch (e) { /* leave template default */ }
+  }
+
+  if (toggle) {
+    toggle.addEventListener('change', async () => {
+      try {
+        await authFetch('/api/settings/ai-enhancement', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: toggle.checked }),
+        });
+      } catch (e) { /* non-fatal */ }
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      if (!confirm('Clear your recent search history?')) return;
+      clearBtn.disabled = true;
+      try {
+        await authFetch('/api/settings/search-history', { method: 'DELETE' });
+        render([]);
+        if (typeof showToast === 'function') showToast('success', 'History cleared', 'Your search history was cleared.');
+      } catch (e) { /* non-fatal */ }
+      clearBtn.disabled = false;
+    });
+  }
+
+  loadToggle();
+  loadHistory();
+}
+
 // Initialize
 loadUserInfo();
 loadIndexedFolders();
@@ -677,3 +740,4 @@ initUpdates();
 initMeili();
 initOllama();
 initGlobalSave();
+initSearchHistory();

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.3.14 — 2026-06-02
+
+### Fixed
+- **AI suggestions now actually use your search history.** The
+  `/api/ollama/recommendations` endpoint ignored the history the home page sent
+  and always returned the generic starter list. It now feeds your recent
+  searches to the model to generate personalized suggestions (still falling back
+  to the static set when AI is off or Ollama is unreachable).
+- **Settings → Search History panel** was unwired (stuck on "Loading search
+  history…"); it now loads and displays your recent searches, and the
+  AI-enhancement toggle and Clear History button work.
+
 ## 0.3.13 — 2026-06-01
 
 ### Fixed
