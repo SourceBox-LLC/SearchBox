@@ -36,7 +36,9 @@ Free, open source, and yours to keep.
 The easy way — no setup, no technical steps:
 
 1. Open the [**Releases** page](https://github.com/SourceBox-LLC/SearchBox/releases).
-2. Download the latest **`SearchBox-…-x86_64.msi`**.
+2. Download the latest installer for your PC — **`SearchBox-…-x86_64.msi`** for
+   most machines, or **`SearchBox-…-aarch64.msi`** for ARM64 Windows (e.g.
+   Snapdragon laptops).
 3. Double-click it and follow the installer.
    *(Windows may show a "publisher not recognized" notice the first time — click **More info → Run anyway**.)*
 4. Launch **SearchBox** from the Start menu.
@@ -126,6 +128,12 @@ own machine), then enable it in **Settings**. Everything stays local.
 **Can it search my downloads?**
 If you use qBittorrent, SearchBox can find and index your completed downloads
 — switch it on in **Settings**.
+
+**How do I update?**
+SearchBox can update itself — go to **Settings → About → Check for updates**
+(it only reaches out to GitHub when you ask, and there's an opt-in
+"check on startup" toggle). Or just download the latest MSI from the Releases
+page and run it; it upgrades in place.
 
 ---
 
