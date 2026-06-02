@@ -58,6 +58,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.arch }}  # keep x64 and arm64 caches separate
+          # Restore-only. Saving the multi-GB target/ tar on the Windows runner
+          # intermittently fails and reds the release leg even though the MSI
+          # built + uploaded fine (e.g. v0.3.14 arm64). A post-action can't be
+          # made non-fatal, so we just never write a new cache here — builds
+          # still restore from existing caches; releases just don't update them.
+          save-if: false
 
       # Decode the optional code-signing certificate. When the
       # `WINDOWS_CERT_BASE64` secret is unset (open-source fork with no cert),
