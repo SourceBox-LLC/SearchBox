@@ -624,9 +624,56 @@ function initOllama() {
   loadStatus();
 }
 
+// ── Global "Save Configuration" button ────────────────────────────────────
+function initGlobalSave() {
+  const btn = document.getElementById('global-save-btn');
+  const status = document.getElementById('save-status');
+  if (!btn) return;
+  const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const checked = (id) => { const el = document.getElementById(id); return el ? el.checked : undefined; };
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    if (status) { status.className = 'save-status'; status.textContent = 'Saving…'; }
+    // Everything that flows through the settings ConfigPatch (Search Engine +
+    // AI Search). Empty path/url/model fields are omitted so a blank input never
+    // clobbers an auto-detected path or an existing value.
+    const patch = {
+      auto_start: checked('meili-autostart'),
+      ai_search_enabled: checked('ai-search-toggle'),
+      ollama_autoconnect: checked('ollama-autoconnect'),
+    };
+    const add = (key, v) => { if (v) patch[key] = v; };
+    add('meilisearch_path', val('meili-path'));
+    add('meilisearch_port', val('meili-port'));
+    add('ollama_url', val('ollama-url'));
+    add('ollama_model', val('ollama-model'));
+    add('ollama_timeout', val('ollama-timeout'));
+    try {
+      const resp = await authFetch('/api/meilisearch/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      if (resp.ok) {
+        if (status) { status.className = 'save-status success'; status.textContent = '✓ Saved'; }
+        if (typeof showToast === 'function') showToast('success', 'Settings saved', 'Your configuration was saved.');
+        setTimeout(() => { if (status && status.textContent === '✓ Saved') status.textContent = ''; }, 4000);
+      } else {
+        const d = await resp.json().catch(() => ({}));
+        if (status) { status.className = 'save-status error'; status.textContent = d.error || 'Save failed'; }
+      }
+    } catch (e) {
+      if (status) { status.className = 'save-status error'; status.textContent = 'Save failed (server unreachable)'; }
+    }
+    btn.disabled = false;
+  });
+}
+
 // Initialize
 loadUserInfo();
 loadIndexedFolders();
 initUpdates();
 initMeili();
 initOllama();
+initGlobalSave();

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.13 — 2026-06-01
+
+### Fixed
+- **"Save Configuration" button now works.** The global Save button in Settings
+  had no handler wired to it; it now persists the Search Engine + AI Search
+  config in one click and shows a "✓ Saved" confirmation. (Individual fields
+  also still auto-save on change.)
+
 ## 0.3.12 — 2026-06-01
 
 ### Fixed
