@@ -210,9 +210,15 @@ impl Meili {
     /// document, keeps the small ZIM HTML ones, and deletes them by id — so no
     /// re-index is needed and it doesn't depend on `file_size` being filterable.
     /// Returns how many were removed.
-    pub async fn cleanup_zim_stubs(&self) -> Result<usize> {
+    /// Remove junk ZIM docs left in the index by older builds (or indexed before
+    /// the extraction filters existed): redirect/alias HTML stubs and tiny
+    /// decorative images (flag/icon/glyph thumbnails). Pages through the index and
+    /// deletes by id, so it needs no special filterable attributes and never
+    /// touches real content or non-archive sources. Returns the count removed.
+    pub async fn cleanup_zim_junk(&self) -> Result<usize> {
         const STUB_MAX_BYTES: u64 = 512;
-        let mut stub_ids: Vec<Value> = Vec::new();
+        const IMAGE_MIN_BYTES: u64 = 1024;
+        let mut junk_ids: Vec<Value> = Vec::new();
         let mut offset: u32 = 0;
         loop {
             let v = self.list_documents(1000, offset).await?;
@@ -225,16 +231,23 @@ impl Meili {
                 break;
             }
             for doc in &results {
-                let is_html = doc.get("file_type").and_then(|t| t.as_str()) == Some("html");
-                let is_zim = doc.get("source").and_then(|s| s.as_str()) == Some("zim");
-                let small = doc
+                if doc.get("source").and_then(|s| s.as_str()) != Some("zim") {
+                    continue;
+                }
+                let size = doc
                     .get("file_size")
                     .and_then(|s| s.as_u64())
-                    .map(|sz| sz < STUB_MAX_BYTES)
+                    .unwrap_or(u64::MAX);
+                let is_html = doc.get("file_type").and_then(|t| t.as_str()) == Some("html");
+                let is_image = doc
+                    .get("is_image")
+                    .and_then(|b| b.as_bool())
                     .unwrap_or(false);
-                if is_html && is_zim && small {
+                let junk =
+                    (is_html && size < STUB_MAX_BYTES) || (is_image && size < IMAGE_MIN_BYTES);
+                if junk {
                     if let Some(id) = doc.get("id").cloned() {
-                        stub_ids.push(id);
+                        junk_ids.push(id);
                     }
                 }
             }
@@ -244,10 +257,10 @@ impl Meili {
                 break;
             }
         }
-        if stub_ids.is_empty() {
+        if junk_ids.is_empty() {
             return Ok(0);
         }
-        let count = stub_ids.len();
+        let count = junk_ids.len();
         let url = format!(
             "{}/indexes/{INDEX_NAME}/documents/delete-batch",
             self.base_url
@@ -255,7 +268,7 @@ impl Meili {
         self.http
             .post(&url)
             .bearer_auth(&self.api_key)
-            .json(&Value::Array(stub_ids))
+            .json(&Value::Array(junk_ids))
             .send()
             .await?
             .error_for_status()?;

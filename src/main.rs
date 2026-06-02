@@ -259,9 +259,10 @@ async fn run_server(
             }
 
             // One-time migration: older builds indexed ZIM redirect/navigation
-            // stubs, and the archive-remove purge never cleared them (a
-            // since-fixed filter bug), so they linger in the index. Sweep them
-            // out by id once Meilisearch answers — no re-index required.
+            // stubs and tiny decorative images (flag/icon thumbnails), and the
+            // archive-remove purge never cleared them (a since-fixed filter bug),
+            // so they linger in the index. Sweep them out by id once Meilisearch
+            // answers — no re-index required.
             if let Ok(m) = crate::services::meili::Meili::from_settings(&db).await {
                 for _ in 0..60 {
                     if m.ping().await.unwrap_or(false) {
@@ -269,10 +270,12 @@ async fn run_server(
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
-                match m.cleanup_zim_stubs().await {
-                    Ok(n) if n > 0 => tracing::info!("removed {n} legacy ZIM redirect stub(s)"),
+                match m.cleanup_zim_junk().await {
+                    Ok(n) if n > 0 => {
+                        tracing::info!("removed {n} junk ZIM entries (stubs + tiny images)")
+                    }
                     Ok(_) => {}
-                    Err(e) => tracing::warn!("ZIM stub cleanup skipped: {e}"),
+                    Err(e) => tracing::warn!("ZIM junk cleanup skipped: {e}"),
                 }
             }
         });

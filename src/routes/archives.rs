@@ -424,6 +424,10 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
     // HTML entries below this size are redirect/navigation stubs, not articles
     // (real Wikipedia pages run several KB+). Tuned for Kiwix-style ZIMs.
     const MIN_ARTICLE_BYTES: usize = 512;
+    // Images below this are decorative junk on Wikipedia ZIMs — flag/icon/glyph
+    // thumbnails (e.g. Flag_of_Monaco.svg.webp at 62 bytes) — not worth showing
+    // as image results or in the gallery. Real content images are several KB+.
+    const MIN_IMAGE_BYTES: usize = 1024;
 
     let z = Zim::new(archive).map_err(|e| anyhow!("open zim: {e}"))?;
 
@@ -479,9 +483,14 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
                     // Washington, D.C." → the real article) and anything below the
                     // minimum article size — on these archives that's always a
                     // navigation stub, never real content.
-                    if ext == "html"
-                        && (bytes.len() < MIN_ARTICLE_BYTES || is_redirect_html(&bytes))
-                    {
+                    let skip = if ext == "html" {
+                        bytes.len() < MIN_ARTICLE_BYTES || is_redirect_html(&bytes)
+                    } else {
+                        // Tiny decorative images (flags/icons/glyphs) clutter the
+                        // image results + gallery without being real content.
+                        bytes.len() < MIN_IMAGE_BYTES
+                    };
+                    if skip {
                         continue;
                     }
                     let rel = if ext == "html" {
