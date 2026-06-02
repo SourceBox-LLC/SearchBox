@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.15 — 2026-06-02
+
+### Fixed
+- **The app now launches on a clean Windows.** `searchbox.exe` and the bundled
+  `meilisearch.exe` are MSVC-linked and need the Visual C++ runtime; a fresh
+  Windows that had never installed a VC++ redistributable failed to start either
+  one (`STATUS_DLL_NOT_FOUND` / 0xC0000135). The MSI now ships the VC++ runtime
+  DLLs app-local, so no separate redistributable is required. (Surfaced by the
+  winget validation pipeline, which tests on a clean VM.)
+
 ## 0.3.14 — 2026-06-02
 
 ### Fixed

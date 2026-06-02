@@ -63,6 +63,40 @@ if (Test-Path $MeiliExe) {
   Invoke-WebRequest -Uri $MeiliUrl -OutFile $MeiliExe -UseBasicParsing
 }
 
+# Bundle the Visual C++ runtime app-local. searchbox.exe + meilisearch.exe are
+# MSVC-linked and need vcruntime140.dll etc.; a fresh Windows without any VC++
+# redistributable doesn't have them, so both exes fail to start with
+# STATUS_DLL_NOT_FOUND (0xC0000135). Shipping the redist DLLs next to the exes
+# makes Windows find them with no VCRedist install. (Match the build arch; the
+# bundled meilisearch.exe is x64, so it relies on the system's x64 runtime on
+# ARM64 — fine on any machine that's ever installed x64 software.)
+$crtArch = if ($Target -like 'aarch64*') { 'arm64' } else { 'x64' }
+Write-Host "==> Bundling the Visual C++ runtime ($crtArch)"
+$crtNames = @('vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll')
+$crtSrc   = $null
+$vswhere  = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if (Test-Path $vswhere) {
+  $vsRoot = (& $vswhere -latest -products * -property installationPath) | Select-Object -First 1
+  if ($vsRoot) {
+    $crtSrc = Get-ChildItem (Join-Path $vsRoot "VC\Redist\MSVC\*\$crtArch\Microsoft.VC*.CRT") -Directory -ErrorAction SilentlyContinue `
+      | Sort-Object FullName -Descending | Select-Object -First 1
+  }
+}
+foreach ($dll in $crtNames) {
+  $dst  = Join-Path $PayloadDir $dll
+  $done = $false
+  if ($null -ne $crtSrc) {
+    $src = Join-Path $crtSrc.FullName $dll
+    if (Test-Path $src) { Copy-Item $src $dst -Force; $done = $true }
+  }
+  if (-not $done -and $crtArch -eq 'x64') {
+    $sys = Join-Path $env:WINDIR "System32\$dll"   # fall back to the runner's own x64 runtime
+    if (Test-Path $sys) { Copy-Item $sys $dst -Force; $done = $true }
+  }
+  if (-not $done) { throw "VC++ runtime '$dll' ($crtArch) not found (VS redist$(if ($crtArch -eq 'x64') { ' / System32' })). Cannot build a self-contained MSI." }
+  Write-Host "    + $dll"
+}
+
 Write-Host "==> Generating icon (searchbox.ico)"
 # make-icon.ps1 uses $ErrorActionPreference='Stop' so it throws on
 # failure — no explicit exit-code check needed (and $LASTEXITCODE

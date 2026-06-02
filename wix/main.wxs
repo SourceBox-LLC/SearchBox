@@ -85,6 +85,18 @@
                 KeyPath="yes"/>
             </Component>
 
+            <!-- Visual C++ runtime, shipped app-local so the app launches on a
+                 clean Windows with no VCRedist installed (see wix\build.ps1). -->
+            <Component Id="VCRuntime140" Guid="*" Win64="yes">
+              <File Id="vcruntime140" Name="vcruntime140.dll" DiskId="1" Source="wix\payload\vcruntime140.dll" KeyPath="yes"/>
+            </Component>
+            <Component Id="VCRuntime140_1" Guid="*" Win64="yes">
+              <File Id="vcruntime140_1" Name="vcruntime140_1.dll" DiskId="1" Source="wix\payload\vcruntime140_1.dll" KeyPath="yes"/>
+            </Component>
+            <Component Id="VCRuntimeCpp" Guid="*" Win64="yes">
+              <File Id="msvcp140" Name="msvcp140.dll" DiskId="1" Source="wix\payload\msvcp140.dll" KeyPath="yes"/>
+            </Component>
+
           </Directory>
         </Directory>
       </Directory>
@@ -143,6 +155,9 @@
       <ComponentRef Id="Binary"/>
       <ComponentRef Id="MeiliSidecar"/>
       <ComponentRef Id="License"/>
+      <ComponentRef Id="VCRuntime140"/>
+      <ComponentRef Id="VCRuntime140_1"/>
+      <ComponentRef Id="VCRuntimeCpp"/>
       <ComponentRef Id="StartMenuShortcut"/>
       <ComponentRef Id="DesktopShortcut"/>
     </Feature>
