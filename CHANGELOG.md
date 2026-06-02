@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.3.6 — 2026-06-01
+
+### Fixed
+- **Old ZIM redirect stubs are now cleaned out automatically — no re-index
+  needed.** Earlier builds indexed tiny redirect/alias pages, and a separate bug
+  meant "remove archive" never actually purged them, so they lingered in search
+  results even after re-indexing. On startup SearchBox now sweeps these stale
+  entries out of the index directly.
+
 ## 0.3.5 — 2026-06-01
 
 ### Fixed

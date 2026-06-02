@@ -257,6 +257,24 @@ async fn run_server(
                 Ok(()) => tracing::info!("meili auto-start initiated"),
                 Err(e) => tracing::warn!("meili auto-start failed: {e}"),
             }
+
+            // One-time migration: older builds indexed ZIM redirect/navigation
+            // stubs, and the archive-remove purge never cleared them (a
+            // since-fixed filter bug), so they linger in the index. Sweep them
+            // out by id once Meilisearch answers — no re-index required.
+            if let Ok(m) = crate::services::meili::Meili::from_settings(&db).await {
+                for _ in 0..60 {
+                    if m.ping().await.unwrap_or(false) {
+                        break;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                match m.cleanup_zim_stubs().await {
+                    Ok(n) if n > 0 => tracing::info!("removed {n} legacy ZIM redirect stub(s)"),
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("ZIM stub cleanup skipped: {e}"),
+                }
+            }
         });
     }
 

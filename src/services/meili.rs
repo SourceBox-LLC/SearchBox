@@ -203,6 +203,65 @@ impl Meili {
         Ok(())
     }
 
+    /// One-time sweep: remove ZIM redirect/navigation stub documents (tiny
+    /// `<meta refresh>` link pages) that older builds indexed. They're no longer
+    /// extracted, but copies linger in the index and the archive-remove purge
+    /// never cleared them (a since-fixed filter bug). Pages through every
+    /// document, keeps the small ZIM HTML ones, and deletes them by id — so no
+    /// re-index is needed and it doesn't depend on `file_size` being filterable.
+    /// Returns how many were removed.
+    pub async fn cleanup_zim_stubs(&self) -> Result<usize> {
+        const STUB_MAX_BYTES: u64 = 512;
+        let mut stub_ids: Vec<Value> = Vec::new();
+        let mut offset: u32 = 0;
+        loop {
+            let v = self.list_documents(1000, offset).await?;
+            let results = v
+                .get("results")
+                .and_then(|r| r.as_array())
+                .cloned()
+                .unwrap_or_default();
+            if results.is_empty() {
+                break;
+            }
+            for doc in &results {
+                let is_html = doc.get("file_type").and_then(|t| t.as_str()) == Some("html");
+                let is_zim = doc.get("source").and_then(|s| s.as_str()) == Some("zim");
+                let small = doc
+                    .get("file_size")
+                    .and_then(|s| s.as_u64())
+                    .map(|sz| sz < STUB_MAX_BYTES)
+                    .unwrap_or(false);
+                if is_html && is_zim && small {
+                    if let Some(id) = doc.get("id").cloned() {
+                        stub_ids.push(id);
+                    }
+                }
+            }
+            let total = v.get("total").and_then(|t| t.as_u64()).unwrap_or(0);
+            offset = offset.saturating_add(1000);
+            if offset as u64 >= total || offset > 1_000_000 {
+                break;
+            }
+        }
+        if stub_ids.is_empty() {
+            return Ok(0);
+        }
+        let count = stub_ids.len();
+        let url = format!(
+            "{}/indexes/{INDEX_NAME}/documents/delete-batch",
+            self.base_url
+        );
+        self.http
+            .post(&url)
+            .bearer_auth(&self.api_key)
+            .json(&Value::Array(stub_ids))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(count)
+    }
+
     pub async fn list_documents(&self, limit: u32, offset: u32) -> Result<Value> {
         let url = format!(
             "{}/indexes/{INDEX_NAME}/documents?limit={limit}&offset={offset}",
