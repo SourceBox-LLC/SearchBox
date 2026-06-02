@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.3.10 — 2026-06-01
+
+### Fixed
+- **Article thumbnails now actually render.** v0.3.9 added them, but the search
+  result transform dropped `file_path`, so the per-article thumbnail URL was
+  never built and no thumbnail showed.
+
 ## 0.3.9 — 2026-06-01
 
 ### Added

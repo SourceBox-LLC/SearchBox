@@ -814,7 +814,8 @@
           has_images: hit.has_images,
           image_count: hit.image_count,
           first_image: hit.first_image,
-          all_images: hit.all_images
+          all_images: hit.all_images,
+          file_path: hit.file_path
         }));
 
         renderResults(results, query, totalResults, searchResults.processingTimeMs, page);
