@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.3.9 — 2026-06-01
+
+### Added
+- **Article thumbnails in search results.** ZIM article results now show a
+  thumbnail next to the link, pulled on demand from the article's first image
+  via `/api/zim/thumb` — computed from the source `.zim`, so no re-index is
+  needed. Articles with no image just render without one.
+
 ## 0.3.8 — 2026-06-01
 
 ### Changed

@@ -947,7 +947,7 @@
                     </div>
                   </div>
                   <div class="document-thumbnail-container">
-                    <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy">
+                    <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy" onerror="this.style.display='none'">
                     <div class="document-info">
                       <div class="result-title">${displayTitle} ${lockBadge} ${imageBadge}</div>
                       <p class="result-snippet">${snippet}</p>
@@ -1004,14 +1004,26 @@
               </a>
             `;
           } else {
+            // ZIM articles get an on-demand thumbnail derived from their first
+            // image (served via /api/zim/thumb) — none has to be indexed.
+            let zimThumb = null;
+            const ftype = (result.file_type || result.fileType || '').toLowerCase();
+            if (result.source === 'zim' && (ftype === 'html' || ftype === 'htm')) {
+              const fp = result.file_path || result.filePath || '';
+              const m = fp.match(/[\\/]archives[\\/]([^\\/]+)[\\/](.+?)\.html?$/i);
+              if (m) {
+                const seg = m[2].split(/[\\/]/).map(encodeURIComponent).join('/');
+                zimThumb = `/api/zim/thumb/${encodeURIComponent(m[1])}/${seg}`;
+              }
+            }
             // Check if document has images
             const hasImages = result.has_images || false;
-            const firstImage = result.first_image || null;
+            const firstImage = zimThumb || result.first_image || null;
             const imageCount = result.image_count || 0;
-            const imageBadge = hasImages ? `<span class="image-count-badge" title="Contains ${imageCount} images">🖼️ ${imageCount}</span>` : '';
-            
-            if (hasImages && firstImage) {
-              // Document with images - show thumbnail
+            const imageBadge = (hasImages && imageCount > 0) ? `<span class="image-count-badge" title="Contains ${imageCount} images">🖼️ ${imageCount}</span>` : '';
+
+            if (firstImage) {
+              // Document with images (or a ZIM article) - show thumbnail
               return `
                 <a href="/view/${result.id}?q=${encodeURIComponent(query)}&page=${page}" class="result-item document-with-images">
                   <div class="result-source">
@@ -1025,7 +1037,7 @@
                     </div>
                   </div>
                   <div class="document-thumbnail-container">
-                    <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy">
+                    <img src="${firstImage}" alt="${result.filename}" class="document-thumbnail" loading="lazy" onerror="this.style.display='none'">
                     <div class="document-info">
                       <div class="result-title">${displayTitle} ${imageBadge}</div>
                       <p class="result-snippet">${snippet}</p>

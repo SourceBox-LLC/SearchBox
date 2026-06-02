@@ -11,7 +11,7 @@ use anyhow::{anyhow, Result};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderValue, StatusCode};
-use axum::response::{Json, Response};
+use axum::response::{IntoResponse, Json, Redirect, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
@@ -32,6 +32,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/archive/list", get(list_archives))
         .route("/api/archive/remove", post(remove_archive))
         .route("/api/zim/content/{archive}/{*path}", get(serve_zim_content))
+        .route("/api/zim/thumb/{archive}/{*url}", get(serve_zim_thumb))
         .route(
             "/api/archive/raw/{archive}/{*path}",
             get(serve_archive_file),
@@ -246,6 +247,73 @@ async fn serve_zim_content(
         );
     }
     Ok(resp)
+}
+
+/// On-demand thumbnail for a ZIM article: resolve the article, find its first
+/// `<img>`, and redirect to that image via the content endpoint — so article
+/// search results can show a thumbnail without indexing one (no re-index). 404s
+/// when the entry isn't an article or has no usable image, so the UI can hide
+/// the thumbnail gracefully.
+async fn serve_zim_thumb(
+    State(state): State<AppState>,
+    _: CurrentUser,
+    Path((archive, url)): Path<(String, String)>,
+) -> AppResult<Response> {
+    if archive.is_empty()
+        || archive.contains("..")
+        || archive.contains('/')
+        || archive.contains('\\')
+    {
+        return Err(AppError::BadRequest("invalid archive".into()));
+    }
+    let archive_dir = archives_root(&state).join(&archive);
+    let sidecar = PathBuf::from(format!("{}.zimsource", archive_dir.display()));
+    let zim_path = std::fs::read_to_string(&sidecar)
+        .map_err(|_| AppError::NotFound("not a ZIM archive".into()))?
+        .trim()
+        .to_string();
+
+    let archive_for_task = archive.clone();
+    let url_for_task = url.clone();
+    let (mime, bytes) =
+        task::spawn_blocking(move || resolve_zim(&zim_path, &url_for_task, &archive_for_task))
+            .await
+            .map_err(|e| AppError::Internal(anyhow!("zim task: {e}")))?
+            .map_err(AppError::Internal)?;
+
+    if !mime.starts_with("text/html") {
+        return Err(AppError::NotFound("not an article".into()));
+    }
+    let src =
+        first_img_src(&bytes).ok_or_else(|| AppError::NotFound("article has no image".into()))?;
+    // The article is served with `<base href="/api/zim/content/{archive}/">`, so a
+    // `./_assets_/…`-style src resolves under that path. Reuse the content
+    // endpoint (it already serves ZIM images, encoding and all).
+    let rel = src.trim_start_matches("./");
+    let target = format!("/api/zim/content/{}/{}", urlencoding::encode(&archive), rel);
+    Ok(Redirect::to(&target).into_response())
+}
+
+/// Find the first non-empty, non-`data:` `<img src="…">` in an HTML document.
+fn first_img_src(html: &[u8]) -> Option<String> {
+    let s = String::from_utf8_lossy(html);
+    let lower = s.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(off) = lower[from..].find("<img") {
+        let tag = from + off;
+        let end = lower[tag..].find('>').map(|e| tag + e).unwrap_or(s.len());
+        if let Some(srel) = lower[tag..end].find("src=\"") {
+            let start = tag + srel + 5;
+            if let Some(q) = s[start..end].find('"') {
+                let src = s[start..start + q].trim();
+                if !src.is_empty() && !src.starts_with("data:") {
+                    return Some(src.to_string());
+                }
+            }
+        }
+        from = end;
+    }
+    None
 }
 
 /// Open `zim_path`, find the entry named `url` (following redirects), and return
