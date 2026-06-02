@@ -133,7 +133,7 @@ impl Meili {
         let body = json!({
             "searchableAttributes": ["filename", "content", "original_filename"],
             "displayedAttributes":  ["*"],
-            "filterableAttributes": ["file_type", "source", "torrent_hash", "archive_path", "has_images", "is_image"],
+            "filterableAttributes": ["file_type", "source", "torrent_hash", "archive_path", "has_images", "is_image", "file_path"],
             "sortableAttributes":   ["filename", "uploaded_at", "indexed_at", "file_size"],
         });
         let resp = self

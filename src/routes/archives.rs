@@ -421,6 +421,10 @@ fn extract_zip(archive: &StdPath, dest: &StdPath) -> Result<()> {
 fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
     use zim::{MimeType, Target, Zim};
 
+    // HTML entries below this size are redirect/navigation stubs, not articles
+    // (real Wikipedia pages run several KB+). Tuned for Kiwix-style ZIMs.
+    const MIN_ARTICLE_BYTES: usize = 512;
+
     let z = Zim::new(archive).map_err(|e| anyhow!("open zim: {e}"))?;
 
     // Pass 1: collect each HTML article AND each image, each tagged with the
@@ -470,9 +474,14 @@ fn extract_zim(archive: &StdPath, dest: &StdPath) -> Result<()> {
                         Ok(b) => b.to_vec(),
                         Err(_) => continue,
                     };
-                    // Skip Kiwix redirect/alias stubs (tiny `<meta http-equiv=
-                    // refresh>` pages) — navigation aliases, not real articles.
-                    if ext == "html" && is_redirect_html(&bytes) {
+                    // Skip non-article HTML: redirect/alias stubs (tiny
+                    // `<meta http-equiv=refresh>` link pages, e.g. "Climate of
+                    // Washington, D.C." → the real article) and anything below the
+                    // minimum article size — on these archives that's always a
+                    // navigation stub, never real content.
+                    if ext == "html"
+                        && (bytes.len() < MIN_ARTICLE_BYTES || is_redirect_html(&bytes))
+                    {
                         continue;
                     }
                     let rel = if ext == "html" {
