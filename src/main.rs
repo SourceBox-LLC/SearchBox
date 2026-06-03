@@ -204,6 +204,8 @@ async fn run_server(
         templates,
         jobs: Arc::new(jobs::JobRegistry::default()),
         meili_proc: meili_proc.clone(),
+        login_throttle: Arc::new(crate::auth::throttle::LoginThrottle::default()),
+        vault_seal_key: Arc::new(crate::vault::crypto::generate_seal_key()),
     };
 
     // Restore persisted jobs from DB

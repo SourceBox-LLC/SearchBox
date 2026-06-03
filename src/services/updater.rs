@@ -88,18 +88,54 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
     !l.is_empty() && l > c
 }
 
+/// Lowercase hex SHA-256 of `bytes`. Gated to where it's actually used (the
+/// Windows updater, and the test) so non-Windows builds don't flag it unused.
+#[cfg(any(target_os = "windows", test))]
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(bytes);
+    hex::encode(h.finalize())
+}
+
 /// Download the MSI to a temp file and launch the Windows Installer. Its restart
 /// manager prompts to close the running app, then performs the in-place major
 /// upgrade. Windows-only (the desktop install target).
 #[cfg(target_os = "windows")]
 pub async fn download_and_launch(msi_url: &str) -> Result<()> {
-    let bytes = client()?
+    let http = client()?;
+    let bytes = http
         .get(msi_url)
         .send()
         .await?
         .error_for_status()?
         .bytes()
         .await?;
+
+    // Verify the download against the published `<msi>.sha256` sidecar before
+    // running the installer. Fetched over the same TLS channel from GitHub, this
+    // catches a corrupted/truncated download or a swapped asset and refuses to
+    // launch on mismatch. (TLS already authenticates the source; a signature
+    // would add supply-chain protection but signing was intentionally skipped.)
+    let sums = http
+        .get(format!("{msi_url}.sha256"))
+        .send()
+        .await?
+        .error_for_status()
+        .map_err(|e| anyhow::anyhow!("update checksum unavailable: {e}"))?
+        .text()
+        .await?;
+    let expected = sums
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if expected.is_empty() || expected != sha256_hex(&bytes) {
+        return Err(anyhow::anyhow!(
+            "update checksum mismatch — refusing to launch the installer"
+        ));
+    }
+
     let path = std::env::temp_dir().join("SearchBox-update.msi");
     std::fs::write(&path, &bytes)?;
     std::process::Command::new("msiexec")
@@ -130,5 +166,14 @@ mod tests {
         assert!(!is_newer("0.2.8", "0.2.9"));
         assert!(!is_newer("0.2.9", "0.2.10"));
         assert!(!is_newer("garbage", "0.2.9")); // unparseable -> not newer
+    }
+
+    #[test]
+    fn sha256_hex_matches_known_vector() {
+        // NIST SHA-256("abc")
+        assert_eq!(
+            sha256_hex(b"abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
     }
 }

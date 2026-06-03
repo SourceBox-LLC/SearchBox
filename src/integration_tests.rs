@@ -553,6 +553,8 @@ async fn spawn_app() -> String {
         templates: Templates::new().expect("load templates"),
         jobs: Arc::new(crate::jobs::JobRegistry::default()),
         meili_proc: Arc::new(MeiliSupervisor::default()),
+        login_throttle: Arc::new(crate::auth::throttle::LoginThrottle::default()),
+        vault_seal_key: Arc::new(crate::vault::crypto::generate_seal_key()),
     };
 
     let app = crate::routes::router(state).layer(session_layer);

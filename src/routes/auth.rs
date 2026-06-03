@@ -84,7 +84,9 @@ async fn setup_post(
         email: user.email.clone(),
         name: user.name.clone(),
         role: user.role.clone(),
-        vault_kek_hex: Some(hex::encode(kek)),
+        vault_kek_sealed: Some(
+            crypto::seal_kek(&state.vault_seal_key, &kek).map_err(AppError::Internal)?,
+        ),
     };
     session
         .insert(SESSION_USER_KEY, &sess_user)
@@ -115,20 +117,43 @@ async fn login_post(
 ) -> AppResult<impl IntoResponse> {
     validate_csrf(&session, &form.csrf_token).await?;
 
-    let user = User::get_by_email(&state.db, &form.email)
-        .await?
-        .ok_or_else(|| AppError::Unauthorized("invalid email or password".into()))?;
+    // Throttle online guessing: a locked-out account is rejected before we even
+    // reach the (deliberately slow) password hash.
+    let throttle_key = form.email.to_ascii_lowercase();
+    if let Some(remaining) = state.login_throttle.check(&throttle_key) {
+        return Err(AppError::TooManyRequests(format!(
+            "too many failed attempts — try again in {}s",
+            remaining.as_secs().max(1)
+        )));
+    }
+
+    let invalid = || AppError::Unauthorized("invalid email or password".into());
+    let user = match User::get_by_email(&state.db, &form.email).await? {
+        Some(u) => u,
+        None => {
+            state.login_throttle.record_failure(&throttle_key);
+            return Err(invalid());
+        }
+    };
     if user.is_active == 0 {
         return Err(AppError::Unauthorized("account disabled".into()));
     }
     if !verify_password(&form.password, &user.password_hash)? {
-        return Err(AppError::Unauthorized("invalid email or password".into()));
+        state.login_throttle.record_failure(&throttle_key);
+        return Err(invalid());
     }
+    state.login_throttle.record_success(&throttle_key);
 
     User::update_last_login(&state.db, user.id).await?;
 
-    let vault_kek_hex = match VaultConfig::get(&state.db).await? {
-        Some(cfg) => Some(hex::encode(crypto::derive_kek(&form.password, &cfg.salt))),
+    let vault_kek_sealed = match VaultConfig::get(&state.db).await? {
+        Some(cfg) => Some(
+            crypto::seal_kek(
+                &state.vault_seal_key,
+                &crypto::derive_kek(&form.password, &cfg.salt),
+            )
+            .map_err(AppError::Internal)?,
+        ),
         None => None,
     };
 
@@ -137,7 +162,7 @@ async fn login_post(
         email: user.email.clone(),
         name: user.name.clone(),
         role: user.role.clone(),
-        vault_kek_hex,
+        vault_kek_sealed,
     };
     session
         .insert(SESSION_USER_KEY, &sess_user)
@@ -230,7 +255,7 @@ async fn change_password(
     // under the old, with the stored hash matching neither — and unrecoverable.
     // The salt is stable; only the KEK changes.
     let new_hash = hash_password(&form.new_password)?;
-    let new_kek_hex = if let Some(cfg) = VaultConfig::get(&state.db).await? {
+    let new_kek_sealed = if let Some(cfg) = VaultConfig::get(&state.db).await? {
         let old_kek = crypto::derive_kek(&form.current_password, &cfg.salt);
         let new_kek = crypto::derive_kek(&form.new_password, &cfg.salt);
         let files = EncryptedFile::all(&state.db).await?;
@@ -259,16 +284,16 @@ async fn change_password(
         tx.commit()
             .await
             .map_err(|e| AppError::Internal(e.into()))?;
-        Some(hex::encode(new_kek))
+        Some(crypto::seal_kek(&state.vault_seal_key, &new_kek).map_err(AppError::Internal)?)
     } else {
         User::update_password_hash(&state.db, user.id, &new_hash).await?;
         None
     };
 
-    // Refresh the session's KEK so the current tab can keep serving vault docs.
-    if new_kek_hex.is_some() {
+    // Refresh the session's sealed KEK so the current tab keeps serving vault docs.
+    if new_kek_sealed.is_some() {
         let refreshed = SessionUser {
-            vault_kek_hex: new_kek_hex,
+            vault_kek_sealed: new_kek_sealed,
             ..current
         };
         session
@@ -359,7 +384,9 @@ pub async fn reset_password(
         email: user.email.clone(),
         name: user.name.clone(),
         role: user.role.clone(),
-        vault_kek_hex: Some(hex::encode(new_kek)),
+        vault_kek_sealed: Some(
+            crypto::seal_kek(&state.vault_seal_key, &new_kek).map_err(AppError::Internal)?,
+        ),
     };
     session
         .insert(SESSION_USER_KEY, &sess_user)

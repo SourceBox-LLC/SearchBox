@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use crate::auth::{CsrfToken, CurrentUser};
 use crate::error::{AppError, AppResult};
-use crate::models::EncryptedFile;
+use crate::models::{EncryptedFile, VaultConfig};
 use crate::services::extractor;
 use crate::services::meili::Meili;
 use crate::services::thumbnail;
@@ -176,10 +176,17 @@ async fn upload(
         }
     }
 
-    // Encrypt + store in vault if a KEK is on the session.
+    // Encrypt + store in vault when one is configured. If the vault is configured
+    // but locked (e.g. after a restart, before the user unlocks it), refuse the
+    // upload rather than silently storing it in the clear.
     let mut source = "upload";
-    if let Some(kek_hex) = &user.0.vault_kek_hex {
-        let kek = crypto::kek_from_hex(kek_hex).map_err(AppError::Internal)?;
+    let vault_kek = crate::vault::current_kek(&state.vault_seal_key, &user.0);
+    if vault_kek.is_none() && VaultConfig::get(&state.db).await?.is_some() {
+        return Err(AppError::Unauthorized(
+            "vault is locked — unlock it in Settings to upload encrypted files".into(),
+        ));
+    }
+    if let Some(kek) = vault_kek {
         let dek = crypto::generate_dek();
         let wrapped = crypto::wrap_dek(&kek, &dek).map_err(AppError::Internal)?;
 
@@ -309,12 +316,11 @@ async fn serve_encrypted_or_plain(
     content_type: &str,
 ) -> AppResult<Response> {
     if let Some(enc) = EncryptedFile::get(&state.db, doc_id).await? {
-        let kek_hex = user
-            .0
-            .vault_kek_hex
-            .as_ref()
-            .ok_or_else(|| AppError::Unauthorized("vault KEK unavailable".into()))?;
-        let kek = crypto::kek_from_hex(kek_hex).map_err(AppError::Internal)?;
+        let kek = crate::vault::current_kek(&state.vault_seal_key, &user.0).ok_or_else(|| {
+            AppError::Unauthorized(
+                "vault is locked — unlock it in Settings to view encrypted files".into(),
+            )
+        })?;
         let dek = crypto::unwrap_dek(&kek, &enc.wrapped_dek).map_err(AppError::Internal)?;
         let ct_path = state.config.vault_dir.join(&enc.encrypted_filename);
         let ct = std::fs::read(&ct_path).map_err(|e| AppError::Internal(e.into()))?;

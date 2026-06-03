@@ -75,14 +75,16 @@ SearchBox/
 Before committing:
 
 ```bash
-cargo fmt
 cargo clippy --all-targets -- -D warnings
-cargo check
+cargo test --all-targets
+cargo audit                  # RustSec advisory scan (also a CI job; see .cargo/audit.toml)
+cargo fmt --all -- --check   # run LAST — clippy fixups can change formatting
 ```
 
-Unit tests cover the vault crypto, password hashing, the job registry, the
-extractor, thumbnails, `doc_id` validation, the ZIM/archive path + redirect
-helpers, and the update version comparator. On top of that, `src/integration_tests.rs`
+Unit tests cover the vault crypto (including the in-memory KEK sealing), password
+hashing, the login throttle, the at-rest secret encryption (`services::secret`),
+the job registry, the extractor, thumbnails, `doc_id` validation, the ZIM/archive
+path + redirect helpers, and the update version comparator + checksum. On top of that, `src/integration_tests.rs`
 (`#[cfg(test)]`) exercises every model's CRUD against an in-memory SQLite, the
 full vault round-trip (derive KEK → encrypt → wrap → store → unwrap → decrypt),
 and the real Axum app over an ephemeral port (health, auth gating, CSRF, and the

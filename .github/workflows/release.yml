@@ -154,6 +154,20 @@ jobs:
           path: ${{ steps.find_msi.outputs.path }}
           if-no-files-found: error
 
+      # Publish a `<msi>.sha256` sidecar next to each MSI. The in-app updater
+      # downloads it and verifies the MSI's hash before launching the installer.
+      - name: Compute MSI checksum
+        id: sha
+        shell: pwsh
+        run: |
+          $msi = "${{ steps.find_msi.outputs.path }}"
+          $hash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToLower()
+          $name = Split-Path $msi -Leaf
+          $sumfile = "$msi.sha256"
+          "$hash  $name" | Out-File -FilePath $sumfile -Encoding ascii -NoNewline
+          "path=$sumfile" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          Write-Host "SHA256($name) = $hash"
+
       # Only publish to a Release when the trigger was a tag push.
       # workflow_dispatch runs skip this so manual dry-runs don't make junk
       # releases. Both matrix legs attach to the same release (files appended).
@@ -161,7 +175,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.find_msi.outputs.path }}
+          files: |
+            ${{ steps.find_msi.outputs.path }}
+            ${{ steps.sha.outputs.path }}
           draft: false
           generate_release_notes: true
           fail_on_unmatched_files: true

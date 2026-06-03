@@ -183,6 +183,25 @@
           <span class="vault-status-text"><strong>Vault Active</strong> Files are encrypted at rest.</span>
         </div>
 
+        <!-- Vault Locked — shown when the in-memory key was cleared (e.g. a restart) -->
+        <div class="reset-warning" id="vault-locked" style="display: none;">
+          <h4>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            Vault locked
+          </h4>
+          <p>Re-enter your password to unlock encrypted files for this session. The
+             encryption key is held only in memory and is cleared when SearchBox
+             restarts — so a copy of your data folder never exposes the vault.</p>
+          <div class="reset-actions">
+            <input type="password" class="reset-confirm-input" id="vault-unlock-password"
+                   placeholder="Your password" autocomplete="current-password">
+            <button class="btn btn-primary" id="vault-unlock-btn">Unlock</button>
+          </div>
+        </div>
+
         <div class="settings-row">
           <div class="settings-info">
             <h3>Reset Vault</h3>

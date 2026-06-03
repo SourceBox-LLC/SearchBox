@@ -39,3 +39,20 @@ jobs:
 
       - name: cargo test
         run: cargo test --all-targets
+
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Prebuilt binary — far faster than `cargo install cargo-audit`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Scans Cargo.lock against the RustSec advisory DB. Fails on security
+      # vulnerabilities; "unmaintained"/"unsound" advisories are warnings.
+      # Known-unreachable advisories are documented + ignored in .cargo/audit.toml.
+      - name: cargo audit
+        run: cargo audit

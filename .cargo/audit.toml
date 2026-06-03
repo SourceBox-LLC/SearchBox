@@ -1,0 +1,17 @@
+# cargo-audit configuration (read by `cargo audit` in CI).
+#
+# `cargo audit` fails the build on security *vulnerabilities*; "unmaintained"
+# and "unsound" advisories are reported as warnings and do not fail it. The one
+# vulnerability in the current tree is documented + ignored below, with the
+# reason it doesn't apply — so CI stays green on the known set and turns red the
+# moment a NEW advisory appears in a dependency.
+
+[advisories]
+ignore = [
+    # rsa — Marvin Attack timing side-channel (RSA private-key operations).
+    # `rsa` is NOT in the Windows build graph (the shipped MSI); it only appears
+    # in a non-Windows transitive path. More to the point, SearchBox performs no
+    # RSA operations anywhere — the vault is AES-256-GCM + PBKDF2 and passwords
+    # are argon2 — so the side-channel is unreachable in our usage.
+    "RUSTSEC-2023-0071",
+]

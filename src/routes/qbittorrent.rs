@@ -38,7 +38,10 @@ struct QbtClient {
 }
 
 impl QbtClient {
-    async fn from_settings(pool: &sqlx::SqlitePool) -> anyhow::Result<Self> {
+    async fn from_settings(
+        pool: &sqlx::SqlitePool,
+        base_dir: &std::path::Path,
+    ) -> anyhow::Result<Self> {
         let host = Settings::get(pool, "qbt_host")
             .await?
             .unwrap_or_else(|| "http://localhost".into());
@@ -46,7 +49,12 @@ impl QbtClient {
             .await?
             .unwrap_or_else(|| "8080".into());
         let username = Settings::get(pool, "qbt_username").await?;
-        let password = Settings::get(pool, "qbt_password").await?;
+        // Stored encrypted at rest (services::secret); legacy plaintext reveals
+        // as-is and is re-encrypted next time the config is saved.
+        let password = match Settings::get(pool, "qbt_password").await? {
+            Some(stored) => crate::services::secret::reveal(base_dir, &stored).ok(),
+            None => None,
+        };
 
         let http = reqwest::Client::builder()
             .cookie_store(true)
@@ -99,7 +107,7 @@ async fn status(State(state): State<AppState>, _: CurrentUser) -> AppResult<Json
     if !enabled {
         return Ok(Json(json!({ "enabled": false, "connected": false })));
     }
-    let c = QbtClient::from_settings(&state.db).await?;
+    let c = QbtClient::from_settings(&state.db, &state.config.base_dir).await?;
     let version = c.version().await.ok();
     Ok(Json(json!({
         "enabled": true,
@@ -146,7 +154,8 @@ async fn post_config(
         Settings::set(&state.db, "qbt_username", Some(v)).await?;
     }
     if let Some(v) = cfg.qbt_password.as_ref() {
-        Settings::set(&state.db, "qbt_password", Some(v)).await?;
+        let protected = crate::services::secret::protect(&state.config.base_dir, v)?;
+        Settings::set(&state.db, "qbt_password", Some(&protected)).await?;
     }
     Ok(Json(json!({ "success": true })))
 }
@@ -159,13 +168,13 @@ async fn test_conn(
 ) -> AppResult<Json<Value>> {
     // For now reuse current persisted creds. Distinct ephemeral credentials
     // is a follow-up.
-    let c = QbtClient::from_settings(&state.db).await?;
+    let c = QbtClient::from_settings(&state.db, &state.config.base_dir).await?;
     let ok = c.version().await.is_ok();
     Ok(Json(json!({ "connected": ok })))
 }
 
 async fn list_torrents(State(state): State<AppState>, _: CurrentUser) -> AppResult<Json<Value>> {
-    let c = QbtClient::from_settings(&state.db).await?;
+    let c = QbtClient::from_settings(&state.db, &state.config.base_dir).await?;
     let completed = c.torrents("completed").await.unwrap_or_default();
     let active = c.torrents("active").await.unwrap_or_default();
     let indexed = QbTorrent::indexed_hashes(&state.db).await?;
@@ -256,7 +265,7 @@ async fn sync_torrents(
     _: CurrentUser,
     _: CsrfToken,
 ) -> AppResult<Json<Value>> {
-    let c = QbtClient::from_settings(&state.db).await?;
+    let c = QbtClient::from_settings(&state.db, &state.config.base_dir).await?;
     let completed = c.torrents("completed").await.unwrap_or_default();
     let known = QbTorrent::indexed_hashes(&state.db).await?;
 

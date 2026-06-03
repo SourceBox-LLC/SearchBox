@@ -15,7 +15,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✅ Current release (Rust rewrite) |
+| 0.3.x   | ✅ Current release (Rust rewrite) |
 | ≤ 2.x   | ❌ Python-era, unsupported |
 
 ## Architecture
@@ -23,6 +23,13 @@
 SearchBox runs entirely on the user's own machine. It opens no outbound
 network connections by default — Meilisearch runs as a local sidecar and
 Ollama is only contacted when the user explicitly enables it.
+
+Both the app's web server and the Meilisearch sidecar bind to loopback
+(`127.0.0.1`) only, so neither the UI/API nor the full-text index (which holds
+the extracted text of every indexed file) is reachable from the local network.
+Set `SEARCHBOX_HOST=0.0.0.0` to deliberately opt into LAN access. The
+Meilisearch master key is a private, per-install random value generated on first
+run — never a shared default.
 
 ### Data privacy
 
@@ -35,17 +42,26 @@ Ollama is only contacted when the user explicitly enables it.
   random nonce, authenticated tag.
 - **Key derivation:** PBKDF2-HMAC-SHA256, 600 000 iterations, random 16-byte
   salt stored once in `vault_config`.
-- **KEK lifecycle:** derived from the admin password at login, held only in
-  the session cookie payload (hex-encoded). Never persisted to disk.
+- **KEK lifecycle:** derived from the admin password at login and held only in
+  process memory, sealed under a per-process key that is regenerated on each
+  start. Only the *sealed* form is written to the session store, so a copied
+  data directory never yields a usable key. The vault re-locks on restart;
+  Settings → Vault Security shows an **Unlock** prompt to re-derive the key from
+  your password without logging out.
 - **DEK wrapping:** each file's DEK is AES-256-GCM-wrapped under the KEK;
   the wrapped blob is stored in `encrypted_files`.
 
 ### Authentication
 
 - Passwords hashed with **argon2id** via the `argon2` crate.
+- **Login is rate-limited:** repeated failures lock an account's logins (and the
+  vault-unlock endpoint) for a cooldown that grows with each failure, slowing
+  online guessing. A successful login clears it.
 - Sessions managed by `tower-sessions` with the SQLite store.
 - Cookies are `HttpOnly`, `SameSite=Lax`; flip `with_secure(true)` in
   `src/main.rs` when serving over HTTPS.
+- **qBittorrent password** is encrypted at rest (AES-256-GCM under a per-install
+  key kept outside the database), so a leaked database alone can't reveal it.
 
 ### Input validation
 
@@ -67,6 +83,21 @@ through the `X-CSRFToken` header (JSON/`fetch` routes) or a `csrf_token` form
 field (login/setup); the server compares it against the session token in
 constant time and rejects mismatches with `403`. This sits on top of
 `HttpOnly`, `SameSite=Lax` session cookies.
+
+### Updates
+
+The opt-in in-app updater downloads the new MSI over TLS from GitHub Releases and
+verifies its SHA-256 against the published `<msi>.sha256` sidecar before running
+the installer, refusing on mismatch. This is an integrity check — installers are
+intentionally unsigned (no paid certificate), so TLS plus the checksum, not a
+code signature, establish trust.
+
+### Dependency auditing
+
+CI runs `cargo audit` against the [RustSec](https://rustsec.org) advisory
+database on every push and pull request, failing on security vulnerabilities.
+Known-unreachable transitive advisories are documented and ignored in
+`.cargo/audit.toml`.
 
 ## Reporting a vulnerability
 
@@ -95,12 +126,12 @@ unless asked not to.
 
 ## Deployment hardening
 
-### Change the defaults
+### Bind address
 
-```bash
-SEARCHBOX_SECRET_KEY=$(openssl rand -hex 32)
-MEILI_MASTER_KEY=$(openssl rand -hex 32)
-```
+SearchBox binds `127.0.0.1` by default. Only set `SEARCHBOX_HOST=0.0.0.0` if you
+intend to expose it on a network — and if you do, put it behind a reverse proxy
+that adds TLS. The Meilisearch master key is generated automatically (random,
+per-install); you don't need to set one.
 
 ### Terminate TLS upstream
 
@@ -133,4 +164,5 @@ volumes:
 
 ---
 
-**Last updated:** May 2026 (v0.2.5 — recovery key password reset)
+**Last updated:** June 2026 (v0.3.17 — loopback binding, sealed in-memory KEK,
+login rate-limiting, encrypted qBittorrent password, update checksums, CI audit)

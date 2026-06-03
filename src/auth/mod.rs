@@ -1,5 +1,6 @@
 pub mod password;
 pub mod session;
+pub mod throttle;
 
 pub use password::{hash_password, verify_password};
 pub use session::{

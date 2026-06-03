@@ -90,13 +90,28 @@ fn aead_decrypt(key: &[u8], blob: &[u8]) -> Result<Vec<u8>> {
         .context("vault decrypt")
 }
 
-/// Decode a hex-encoded KEK from session storage.
-pub fn kek_from_hex(hex_str: &str) -> Result<[u8; KEK_LEN]> {
-    let bytes = hex::decode(hex_str).map_err(|e| anyhow!("decode kek hex: {e}"))?;
-    bytes
-        .as_slice()
+/// A fresh random 32-byte key for sealing vault KEKs in memory for this process.
+/// Regenerated every start, so anything it sealed becomes undecryptable across a
+/// restart (the vault then re-locks until the user unlocks it).
+pub fn generate_seal_key() -> [u8; KEK_LEN] {
+    generate_dek()
+}
+
+/// Seal a KEK under the process-ephemeral seal key, so the value we persist into
+/// the (on-disk) session store is useless to anyone who copies the data dir.
+/// Returns hex of `nonce || ciphertext+tag`.
+pub fn seal_kek(seal_key: &[u8; KEK_LEN], kek: &[u8; KEK_LEN]) -> Result<String> {
+    Ok(hex::encode(aead_encrypt(seal_key, kek)?))
+}
+
+/// Unseal a KEK previously produced by [`seal_kek`]. Returns `Err` if the seal
+/// key differs (e.g. the process restarted) — callers treat that as "locked".
+pub fn unseal_kek(seal_key: &[u8; KEK_LEN], sealed_hex: &str) -> Result<[u8; KEK_LEN]> {
+    let blob = hex::decode(sealed_hex).map_err(|e| anyhow!("decode sealed kek: {e}"))?;
+    let pt = aead_decrypt(seal_key, &blob)?;
+    pt.as_slice()
         .try_into()
-        .map_err(|_| anyhow!("hex KEK wrong length"))
+        .map_err(|_| anyhow!("sealed KEK wrong length"))
 }
 
 /// Generate a fresh random recovery key (32 bytes).
@@ -167,15 +182,18 @@ mod tests {
     }
 
     #[test]
-    fn kek_from_hex_roundtrip() {
-        let kek = derive_kek("test", &[2u8; 16]);
-        let hex = hex::encode(kek);
-        let recovered = kek_from_hex(&hex).unwrap();
-        assert_eq!(kek, recovered);
-    }
+    fn seal_unseal_round_trip() {
+        let seal = generate_seal_key();
+        let kek = derive_kek("admin-pw", &[3u8; 16]);
+        let sealed = seal_kek(&seal, &kek).unwrap();
+        assert_ne!(sealed, hex::encode(kek), "sealed value is not the raw KEK");
+        assert_eq!(unseal_kek(&seal, &sealed).unwrap(), kek);
 
-    #[test]
-    fn kek_from_hex_wrong_length() {
-        assert!(kek_from_hex("abcd").is_err());
+        // A different seal key (i.e. after a process restart) can't unseal it.
+        let other = generate_seal_key();
+        assert!(
+            unseal_kek(&other, &sealed).is_err(),
+            "a restart's new seal key must not unseal the old value"
+        );
     }
 }

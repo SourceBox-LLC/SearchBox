@@ -256,11 +256,9 @@ async fn generate_recovery_key(
         .await?
         .ok_or_else(|| AppError::BadRequest("vault not configured".into()))?;
 
-    let kek_hex = current
-        .vault_kek_hex
-        .as_ref()
-        .ok_or_else(|| AppError::BadRequest("vault KEK not in session".into()))?;
-    let kek = crypto::kek_from_hex(kek_hex)?;
+    let kek = crate::vault::current_kek(&state.vault_seal_key, &current).ok_or_else(|| {
+        AppError::BadRequest("vault is locked — unlock it to generate a recovery key".into())
+    })?;
 
     let recovery_dek = crypto::generate_recovery_key();
     let wrapped_recovery_dek = crypto::wrap_dek(&kek, &recovery_dek).map_err(AppError::Internal)?;

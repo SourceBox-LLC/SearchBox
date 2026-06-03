@@ -92,6 +92,8 @@ Power users can also combine filters with `::&&` (and), `::||` (or), and
 
 - **Nothing leaves your computer.** No ads, no tracking, no cloud account, no
   phoning home.
+- **Runs on localhost only.** SearchBox and its search index listen on
+  `127.0.0.1` — not your network — so your files and index stay on your machine.
 - **Your vault is encrypted** with your password using strong encryption
   (AES-256). Files in the vault can't be read without it.
 - **Recovery key for password reset.** During setup, you'll download a recovery

@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.3.17 — 2026-06-03
+
+### Security
+- **Login is now rate-limited.** After repeated failed attempts, an account's
+  logins (and the vault-unlock endpoint) are locked for a cooldown that grows
+  with each further failure, slowing online password guessing. A successful
+  login clears it.
+- **The vault key is no longer written to disk in usable form.** The KEK was
+  cached in the (on-disk) session store; it's now sealed with a process-only key
+  that's regenerated on each start, so copying your data folder never yields a
+  usable key. Trade-off: the vault re-locks when SearchBox restarts — Settings →
+  Vault Security shows an **Unlock** prompt to re-enter your password (no logout
+  needed).
+- **The qBittorrent password is encrypted at rest.** It was stored in plaintext
+  in `searchbox.db`; it's now AES-256-GCM-encrypted under a per-install key kept
+  in a separate file, so a leaked or backed-up database alone can't reveal it.
+  Existing values migrate on next save.
+- **The in-app updater verifies a SHA-256 checksum** of the downloaded MSI
+  against a published `<msi>.sha256` sidecar before launching the installer, and
+  refuses to run on mismatch.
+- **CI now runs `cargo audit`** against the RustSec advisory database on every
+  push and PR, failing on security vulnerabilities (with documented, justified
+  ignores for known-unreachable transitive advisories).
+
 ## 0.3.16 — 2026-06-02
 
 ### Security

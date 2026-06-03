@@ -27,8 +27,10 @@ pub struct SessionUser {
     pub email: String,
     pub name: Option<String>,
     pub role: String,
-    /// Hex-encoded bytes of the vault KEK, or `None` if no vault is set up.
-    pub vault_kek_hex: Option<String>,
+    /// Sealed (process-key-encrypted) hex of the vault KEK, or `None` when no
+    /// vault is set up. Useless on disk without the in-memory seal key; the
+    /// vault re-locks after a restart until the user unlocks it.
+    pub vault_kek_sealed: Option<String>,
 }
 
 /// Extractor that resolves to the logged-in user, or rejects with 401 (JSON)

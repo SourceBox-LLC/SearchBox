@@ -250,6 +250,59 @@ if (resetConfirmBtn) {
   });
 }
 
+// ── Vault Unlock (in-memory key is cleared on restart) ────────────────────
+
+const vaultLockedPanel = document.getElementById('vault-locked');
+const vaultUnlockBtn = document.getElementById('vault-unlock-btn');
+const vaultUnlockInput = document.getElementById('vault-unlock-password');
+
+async function refreshVaultStatus() {
+  if (!vaultLockedPanel) return;
+  try {
+    const resp = await fetch('/api/vault/status');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    vaultLockedPanel.style.display = data.locked ? 'block' : 'none';
+  } catch (e) {
+    /* network hiccup — leave the panel as-is */
+  }
+}
+
+async function submitVaultUnlock() {
+  const pw = vaultUnlockInput ? vaultUnlockInput.value : '';
+  if (!pw) { showToast('Enter your password', 'error'); return; }
+  vaultUnlockBtn.disabled = true;
+  try {
+    const resp = await authFetch('/api/vault/unlock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      showToast('Vault unlocked', 'success');
+      if (vaultUnlockInput) vaultUnlockInput.value = '';
+      refreshVaultStatus();
+    } else {
+      showToast(data.error || 'Unlock failed', 'error');
+    }
+  } catch (e) {
+    showToast('Unlock failed', 'error');
+  } finally {
+    vaultUnlockBtn.disabled = false;
+  }
+}
+
+if (vaultUnlockBtn) {
+  vaultUnlockBtn.addEventListener('click', submitVaultUnlock);
+}
+if (vaultUnlockInput) {
+  vaultUnlockInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitVaultUnlock();
+  });
+}
+refreshVaultStatus();
+
 // ── Indexed Folders ──────────────────────────────────────────────────────
 
 const foldersList = document.getElementById('folders-list');
