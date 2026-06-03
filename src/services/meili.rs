@@ -18,6 +18,10 @@ use crate::models::Settings;
 /// `source` field.
 pub const INDEX_NAME: &str = "documents";
 
+/// The old hard-coded shared master key. Any install still on it — or with no
+/// key set — is rotated onto a private random key by [`ensure_master_key`].
+const LEGACY_SAMPLE_KEY: &str = "aSampleMasterKey";
+
 #[derive(Debug, Clone, Serialize)]
 pub struct MeiliClientConfig {
     pub host: String,
@@ -35,12 +39,36 @@ pub async fn client_config(pool: &SqlitePool) -> Result<MeiliClientConfig> {
         .unwrap_or_else(|| "7700".into());
     let api_key = Settings::get(pool, "master_key")
         .await?
-        .unwrap_or_else(|| "aSampleMasterKey".into());
+        .unwrap_or_else(|| LEGACY_SAMPLE_KEY.to_string());
 
     Ok(MeiliClientConfig {
         host: format!("{public_host}:{port}"),
         api_key,
     })
+}
+
+/// Ensure a private Meilisearch master key exists, generating a strong random
+/// one on first run (and rotating any install still on the legacy shared key).
+/// Run once at startup before the sidecar launches, so the launcher and every
+/// client read the same value from settings and always agree on the key.
+pub async fn ensure_master_key(pool: &SqlitePool) -> Result<String> {
+    if let Some(k) = Settings::get(pool, "master_key").await? {
+        if !k.is_empty() && k != LEGACY_SAMPLE_KEY {
+            return Ok(k);
+        }
+    }
+    let key = generate_master_key();
+    Settings::set(pool, "master_key", Some(key.as_str())).await?;
+    tracing::info!("generated a private random Meilisearch master key");
+    Ok(key)
+}
+
+/// 32 cryptographically-random bytes, hex-encoded (64 chars).
+fn generate_master_key() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    hex::encode(bytes)
 }
 
 /// Server-side Meilisearch handle (reads from DB settings on every construction;
@@ -61,7 +89,7 @@ impl Meili {
             .unwrap_or_else(|| "7700".into());
         let api_key = Settings::get(pool, "master_key")
             .await?
-            .unwrap_or_else(|| "aSampleMasterKey".into());
+            .unwrap_or_else(|| LEGACY_SAMPLE_KEY.to_string());
         Ok(Self {
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(30))
@@ -427,4 +455,18 @@ pub async fn apply_config_patch(pool: &SqlitePool, patch: ConfigPatch) -> Result
     put(pool, "ollama_timeout", patch.ollama_timeout.as_deref()).await?;
     put_bool(pool, "ollama_autoconnect", patch.ollama_autoconnect).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn master_key_is_strong_and_unique() {
+        let a = generate_master_key();
+        let b = generate_master_key();
+        assert_eq!(a.len(), 64, "32 bytes, hex-encoded");
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(a, b, "each generated key is random");
+    }
 }

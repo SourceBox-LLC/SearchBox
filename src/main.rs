@@ -176,6 +176,13 @@ async fn run_server(
     db::init_schema(&db).await?;
     tracing::info!("db connected, schema applied");
 
+    // Generate a private, per-install Meilisearch master key on first run (and
+    // rotate any install still on the legacy shared sample key) BEFORE anything
+    // reads it — so the sidecar launcher and every client agree on one key.
+    if let Err(e) = crate::services::meili::ensure_master_key(&db).await {
+        tracing::warn!("could not ensure meili master key: {e}");
+    }
+
     // Session store shares the app DB. Its own `tower_sessions` table is
     // created in-migrate on first use — separate from our CREATE TABLE IF
     // NOT EXISTS schema.

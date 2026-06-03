@@ -58,7 +58,10 @@ impl Config {
         let log_dir = base_dir.join("log");
 
         Ok(Self {
-            host: env::var("SEARCHBOX_HOST").unwrap_or_else(|_| "0.0.0.0".into()),
+            // Local-first by default: bind loopback only, so the UI + API (and the
+            // file contents they expose) aren't reachable from the LAN. Opt into
+            // network access explicitly with SEARCHBOX_HOST=0.0.0.0.
+            host: env::var("SEARCHBOX_HOST").unwrap_or_else(|_| "127.0.0.1".into()),
             port: env::var("SEARCHBOX_PORT")
                 .ok()
                 .and_then(|s| s.parse().ok())

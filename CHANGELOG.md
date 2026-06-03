@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.3.16 — 2026-06-02
+
+### Security
+- **SearchBox and its Meilisearch index now bind to loopback (127.0.0.1) only.**
+  Both previously listened on `0.0.0.0`, which exposed the web UI, the API, and
+  the full-text index — the extracted text of every indexed file — to the entire
+  local network, contradicting the "nothing leaves your machine" promise. They
+  now bind localhost only. Set `SEARCHBOX_HOST=0.0.0.0` to deliberately opt back
+  into LAN access.
+- **A private, random Meilisearch master key is generated on first run.** Earlier
+  builds fell back to a shared hard-coded key (`aSampleMasterKey`); combined with
+  the `0.0.0.0` bind, anyone on the network could read or wipe the index with a
+  publicly-known credential. Installs still on the sample key are rotated onto a
+  private key automatically — no re-index required.
+
 ## 0.3.15 — 2026-06-02
 
 ### Fixed

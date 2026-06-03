@@ -36,9 +36,10 @@ impl MeiliSupervisor {
         if !Path::new(&bin).is_file() {
             return Err(anyhow!("meilisearch binary not found at {bin}"));
         }
-        let master = Settings::get(db, "master_key")
-            .await?
-            .unwrap_or_else(|| "aSampleMasterKey".into());
+        // A private, per-install random key (generated on first run), never the
+        // old shared sample key. Launcher and clients both read this settings
+        // value, so they always agree.
+        let master = crate::services::meili::ensure_master_key(db).await?;
         let port = Settings::get(db, "meilisearch_port")
             .await?
             .unwrap_or_else(|| "7700".into());
@@ -51,8 +52,10 @@ impl MeiliSupervisor {
 
         let mut cmd = Command::new(&bin);
         cmd.args([
+            // Loopback only — the index holds the extracted text of every indexed
+            // file and must never be exposed to the network.
             "--http-addr",
-            &format!("0.0.0.0:{port}"),
+            &format!("127.0.0.1:{port}"),
             "--master-key",
             &master,
             "--db-path",
