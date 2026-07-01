@@ -8,10 +8,14 @@
   <meta property="og:title" content="SearchBox — Your local document search engine">
   <meta property="og:description" content="Find anything on your computer — instantly, and completely private. Nothing leaves your machine.">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="screenshots/home.png">
+  <meta property="og:image" content="https://sourcebox-llc.github.io/SearchBox/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="SearchBox — Find anything on your computer, completely private">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SearchBox — Your local document search engine">
   <meta name="twitter:description" content="Find anything on your computer — instantly, and completely private.">
+  <meta name="twitter:image" content="https://sourcebox-llc.github.io/SearchBox/og-image.png">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230d1117'/><text x='50' y='72' font-size='62' font-weight='700' text-anchor='middle' fill='%2358a6ff' font-family='sans-serif'>S</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -340,21 +344,64 @@
     .img-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .img-gallery-item {
       aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden;
-      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-subtle);
       display: flex; align-items: center; justify-content: center;
       position: relative; cursor: pointer; transition: transform .15s;
     }
-    .img-gallery-item:hover { transform: scale(1.05); }
-    .img-gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+    .img-gallery-item:hover { transform: scale(1.05); border-color: var(--accent); }
     .img-gallery-item .placeholder {
       font-size: 10px; color: var(--text-faint); padding: 4px; text-align: center;
       word-break: break-word;
     }
 
+    /* ── Animated SVG image thumbnails (gradient-based mini scenes) ───────────── */
+    .thumb {
+      width: 100%; height: 100%; position: absolute; inset: 0;
+    }
+    .thumb-sunset {
+      background: linear-gradient(180deg, #1a1a2e 0%, #16213e 30%, #e8873c 75%, #f9c74f 100%);
+    }
+    .thumb-sunset::before {
+      content: ''; position: absolute; bottom: 20%; left: 30%; right: 30%; height: 12px;
+      background: #f9c74f; border-radius: 50%; filter: blur(2px); opacity: 0.9;
+    }
+    .thumb-sunset::after {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 35%;
+      background: linear-gradient(180deg, #0d1117, #161b22); opacity: 0.7;
+    }
+    .thumb-beach {
+      background: linear-gradient(180deg, #58a6ff 0%, #79b8ff 50%, #e8d8c0 100%);
+    }
+    .thumb-beach::before {
+      content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 30%;
+      background: #e8d8c0; clip-path: polygon(0 60%, 100% 50%, 100% 100%, 0 100%);
+    }
+    .thumb-doc {
+      background: linear-gradient(135deg, #161b22, #0d1117);
+    }
+    .thumb-doc::before {
+      content: ''; position: absolute; top: 18%; left: 25%; right: 25%; height: 3px;
+      background: var(--text-muted); border-radius: 2px; box-shadow:
+        0 8px 0 var(--text-muted), 0 16px 0 var(--text-muted),
+        0 24px 0 var(--text-muted), 0 32px 0 var(--text-faint);
+      opacity: 0.5;
+    }
+    .thumb-vault {
+      background: radial-gradient(circle at 50% 50%, #21262d, #0d1117);
+    }
+    .thumb-vault::after {
+      content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 28%; height: 24%; border: 2px solid var(--accent); border-radius: 4px;
+      opacity: 0.5;
+    }
+
+    /* ── Staggered result fade-in ────────────────────────────────────────────── */
     .result-item {
       padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
-      cursor: pointer; transition: padding .15s;
+      cursor: pointer; transition: padding .15s, opacity .35s ease, transform .35s ease;
+      opacity: 0; transform: translateY(8px);
     }
+    .result-item.visible { opacity: 1; transform: translateY(0); }
     .result-item:hover { padding-left: 8px; }
     .result-item:last-child { border-bottom: none; }
     .result-icon {
@@ -635,7 +682,15 @@
       .privacy-visual { order: -1; min-height: 240px; }
       .showcase { grid-template-columns: 1fr; }
       .download-cards { grid-template-columns: 1fr; }
-      .results-sidebar { display: none; }
+      /* Mobile: sidebar becomes a horizontal scroll strip below results */
+      .results-container { flex-direction: column; height: auto; gap: 0; }
+      .results-main { height: 240px; }
+      .results-sidebar {
+        width: 100%; border-left: none; border-top: 1px solid var(--border-subtle);
+        padding-left: 0; padding-top: 16px; margin-top: 16px;
+      }
+      .results-sidebar h4 { margin-bottom: 8px; }
+      .img-gallery { grid-template-columns: repeat(4, 1fr); }
       .footer-grid { grid-template-columns: 1fr 1fr; }
       .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
     }
@@ -1293,21 +1348,29 @@
       }).join('');
     }
 
-    // Image gallery in sidebar
+    // Image gallery in sidebar — with gradient-based mini thumbnails
     var imageDocs = DOCS.filter(function(d) { return d.type === 'image'; });
     if (imageDocs.length > 0) {
+      var THUMB_CLASS = { 'Sunset at Kaʻanapali': 'thumb-sunset', 'Maui Trip Photos': 'thumb-beach' };
       sidebar.innerHTML =
         '<h4>Images</h4>' +
         '<div class="img-gallery">' +
           imageDocs.slice(0, 4).map(function(d) {
+            var tc = THUMB_CLASS[d.title] || 'thumb-doc';
             return '<div class="img-gallery-item" title="' + d.title + '">' +
-              '<div class="placeholder">' + d.title.split('—')[0].trim().split(' ').slice(0,2).join(' ') + '</div>' +
+              '<div class="thumb ' + tc + '"></div>' +
             '</div>';
           }).join('') +
         '</div>';
     } else {
       sidebar.innerHTML = '';
     }
+
+    // Trigger staggered fade-in on result items
+    var items = list.querySelectorAll('.result-item');
+    items.forEach(function(item, i) {
+      setTimeout(function() { item.classList.add('visible'); }, 60 * i);
+    });
   }
 
   function demoAction(action) {
@@ -1329,29 +1392,104 @@
     }, 25);
   })();
 
-  // Auto-type demo suggestions on first scroll into view
-  var demoStarted = false;
+  // Auto-play demo: types queries character-by-character on scroll-into-view,
+  // pauses for the user to read results, then moves to the next query.
+  // Stops the moment the user interacts (types, clicks a button, or focuses the search).
+  var autoPlayState = {
+    running: false,
+    stopped: false,
+    timers: []
+  };
+
+  function stopAutoPlay() {
+    autoPlayState.stopped = true;
+    autoPlayState.timers.forEach(clearTimeout);
+    autoPlayState.timers = [];
+  }
+
+  // Listen for any user interaction to stop auto-play
+  ['input', 'click', 'focus', 'touchstart'].forEach(function(evt) {
+    document.getElementById('demo').addEventListener(evt, function() {
+      if (autoPlayState.running) stopAutoPlay();
+    }, { once: false, passive: true });
+  });
+
+  function typeInto(input, text, speed, done) {
+    var i = 0;
+    input.value = '';
+    function step() {
+      if (autoPlayState.stopped) return;
+      input.value = text.slice(0, i);
+      handleDemoSearch(input.value);
+      i++;
+      if (i <= text.length) {
+        autoPlayState.timers.push(setTimeout(step, speed));
+      } else if (done) {
+        done();
+      }
+    }
+    step();
+  }
+
+  function clearDemo(done) {
+    var input = document.getElementById('demoSearchInput');
+    var text = input.value;
+    var i = text.length;
+    function step() {
+      if (autoPlayState.stopped) return;
+      i--;
+      input.value = text.slice(0, i);
+      handleDemoSearch(input.value);
+      if (i > 0) {
+        autoPlayState.timers.push(setTimeout(step, 30));
+      } else if (done) {
+        done();
+      }
+    }
+    step();
+  }
+
+  function startAutoPlay() {
+    if (autoPlayState.running || autoPlayState.stopped) return;
+    autoPlayState.running = true;
+
+    var input = document.getElementById('demoSearchInput');
+    var queries = ['quarterly', 'budget ::pdf', 'vacation ::image', 'taxes ::vault'];
+    var qi = 0;
+
+    function next() {
+      if (autoPlayState.stopped) return;
+      var query = queries[qi % queries.length];
+      qi++;
+
+      // Clear previous query first
+      if (input.value) {
+        clearDemo(function() {
+          autoPlayState.timers.push(setTimeout(function() {
+            typeInto(input, query, 65, function() {
+              // Pause to let results be read, then continue
+              autoPlayState.timers.push(setTimeout(next, 2800));
+            });
+          }, 500));
+        });
+      } else {
+        typeInto(input, query, 65, function() {
+          autoPlayState.timers.push(setTimeout(next, 2800));
+        });
+      }
+    }
+
+    // Small delay before the first query
+    autoPlayState.timers.push(setTimeout(next, 600));
+  }
+
   var demoObserver = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
-      if (entry.isIntersecting && !demoStarted) {
-        demoStarted = true;
-        var hints = [
-          "Search your documents... Try 'budget ::pdf'",
-          "Search your documents... Try 'vacation ::image'",
-          "Search your documents... Try 'taxes ::vault'",
-          "Search your documents... Try 'quarterly'"
-        ];
-        var hi = 0;
-        var input = document.getElementById('demoSearchInput');
-        if (input) {
-          setInterval(function() {
-            if (document.activeElement === input || input.value) return;
-            input.setAttribute('placeholder', hints[hi++ % hints.length]);
-          }, 3000);
-        }
+      if (entry.isIntersecting) {
+        startAutoPlay();
       }
     });
-  }, { threshold: 0.3 });
+  }, { threshold: 0.35 });
   demoObserver.observe(document.getElementById('demo'));
   </script>
 </body>
