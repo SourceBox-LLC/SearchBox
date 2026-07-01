@@ -269,7 +269,8 @@
 
     /* The search bar — pill shaped, matching SearchBox */
     .demo-search-wrap {
-      width: 100%; max-width: 540px; position: relative; margin-bottom: 24px;
+      width: 100%; max-width: 540px; position: relative;
+      margin: 0 auto 24px;
     }
     .demo-search {
       width: 100%; padding: 12px 48px 12px 20px;
@@ -394,16 +395,83 @@
       width: 28%; height: 24%; border: 2px solid var(--accent); border-radius: 4px;
       opacity: 0.5;
     }
+    .thumb-sunrise {
+      background: linear-gradient(180deg, #1a0a2e 0%, #3d1a5e 40%, #bc8cff 70%, #f9c74f 100%);
+    }
+    .thumb-sunrise::before {
+      content: ''; position: absolute; top: 38%; left: 50%; transform: translateX(-50%);
+      width: 18%; height: 18%; background: #f9c74f; border-radius: 50%; filter: blur(3px);
+      box-shadow: 0 0 20px #f9c74f, 0 0 40px rgba(249,199,79,0.4);
+    }
 
-    /* ── Staggered result fade-in ────────────────────────────────────────────── */
+    /* ── Staggered result fade-in (only on first appearance, not every keystroke) ─ */
     .result-item {
       padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
       cursor: pointer; transition: padding .15s, opacity .35s ease, transform .35s ease;
+    }
+    .result-item:hover { padding-left: 8px; }
+    /* When actively typing (auto-play or user), skip the stagger animation to avoid flicker */
+    .results-main.is-typing .result-item { opacity: 1; transform: none; transition: none; }
+    /* Stagger only applies when NOT typing */
+    .results-main:not(.is-typing) .result-item {
       opacity: 0; transform: translateY(8px);
     }
-    .result-item.visible { opacity: 1; transform: translateY(0); }
-    .result-item:hover { padding-left: 8px; }
+    .results-main:not(.is-typing) .result-item.visible {
+      opacity: 1; transform: translateY(0);
+    }
     .result-item:last-child { border-bottom: none; }
+
+    /* Result metadata (size, date) */
+    .result-meta {
+      font-size: 11px; color: var(--text-faint); font-family: var(--mono);
+      margin-left: 8px;
+    }
+    /* Result count header */
+    .results-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 8px; margin-bottom: 4px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .results-count {
+      font-size: 13px; color: var(--text-secondary); font-weight: 500;
+    }
+    .results-count strong { color: var(--accent); }
+    .results-filters {
+      display: flex; gap: 6px;
+    }
+    .filter-chip {
+      font-size: 11px; font-family: var(--mono); color: var(--accent);
+      background: var(--accent-dim); border: 1px solid rgba(88,166,255,0.3);
+      padding: 2px 8px; border-radius: 999px;
+    }
+
+    /* AI Summary box */
+    .ai-summary {
+      margin-top: 12px; padding: 12px 14px;
+      background: linear-gradient(135deg, rgba(188,140,255,0.08), rgba(88,166,255,0.05));
+      border: 1px solid rgba(188,140,255,0.2);
+      border-radius: var(--radius-md);
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .ai-summary-icon {
+      flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px;
+      background: rgba(188,140,255,0.15); color: var(--purple);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ai-summary-icon svg { width: 14px; height: 14px; }
+    .ai-summary-content { flex: 1; }
+    .ai-summary-label {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--purple); font-weight: 600; margin-bottom: 3px;
+    }
+    .ai-summary-text {
+      font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
+    }
+    .ai-summary-text .ai-cursor {
+      display: inline-block; width: 6px; height: 13px; background: var(--purple);
+      vertical-align: middle; margin-left: 1px; animation: blink 1s steps(1) infinite;
+    }
+    @keyframes blink { 0%,49% {opacity:1;} 50%,100% {opacity:0;} }
     .result-icon {
       display: inline-flex; align-items: center; justify-content: center;
       min-width: 22px; height: 16px; border-radius: 3px; font-size: 9px;
@@ -784,7 +852,7 @@
                 <div class="demo-search-wrap">
                   <input type="text" class="demo-search" id="demoSearchInput"
                     placeholder="Search your documents... Try 'budget ::pdf'" autocomplete="off"
-                    oninput="handleDemoSearch(this.value)" />
+                    oninput="markTyping(); handleDemoSearch(this.value)" />
                   <span class="demo-search-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                   </span>
@@ -819,13 +887,26 @@
                 <div class="demo-search-wrap" style="max-width:100%; margin-bottom:16px;">
                   <input type="text" class="demo-search" id="demoSearchInput2"
                     placeholder="Search your documents..." autocomplete="off"
-                    oninput="handleDemoSearch(this.value)" />
+                    oninput="markTyping(); handleDemoSearch(this.value)" />
                   <span class="demo-search-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
                   </span>
                 </div>
                 <div class="results-container">
-                  <div class="results-main" id="resultsList"></div>
+                  <div class="results-main" id="resultsList">
+                    <div class="results-header" id="resultsHeader" style="display:none;">
+                      <span class="results-count" id="resultsCount"></span>
+                      <div class="results-filters" id="resultsFilters"></div>
+                    </div>
+                    <div id="resultsItems"></div>
+                    <div class="ai-summary" id="aiSummary" style="display:none;">
+                      <div class="ai-summary-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg></div>
+                      <div class="ai-summary-content">
+                        <div class="ai-summary-label">AI Summary · Ollama (local)</div>
+                        <div class="ai-summary-text" id="aiSummaryText"></div>
+                      </div>
+                    </div>
+                  </div>
                   <div class="results-sidebar" id="resultsSidebar"></div>
                 </div>
                 <p class="demo-hint">Try: <code>budget ::pdf</code> · <code>vacation ::image</code> · <code>quarterly</code> · or just type a typo like <code>quartarly</code></p>
@@ -1172,38 +1253,58 @@
 
   /* ── Interactive demo data ──────────────────────────────────────────────────── */
   const DOCS = [
-    { title: 'Q3 Financial Report.pdf', type: 'pdf', path: '~/Documents/Finance/',
-      content: 'Quarterly revenue reached $4.2M, a 15% increase over Q2. Operating expenses were kept under budget at $2.8M. The board approved the expansion plan for Q4. Key metrics: customer acquisition cost down 12%, lifetime value up 8%.' },
-    { title: 'Budget 2026 Proposal.docx', type: 'docx', path: '~/Documents/Finance/',
-      content: 'Proposed budget for fiscal year 2026. Total allocation: $12.5M across departments. Engineering receives the largest share at 40%, followed by marketing at 25%. Includes contingency fund of $750K for unexpected expenses.' },
-    { title: 'Annual Revenue Spreadsheet.xlsx', type: 'xlsx', path: '~/Documents/Finance/',
-      content: 'Year-over-year revenue breakdown by quarter. 2025 total: $16.8M. Q1: $3.1M, Q2: $3.7M, Q3: $4.2M, Q4: $5.8M. Growth rate: 22% annually. Projections for 2026 indicate continued upward trend.' },
-    { title: 'Hawaii Vacation Itinerary.pdf', type: 'pdf', path: '~/Documents/Travel/',
-      content: 'Day 1: Arrival in Honolulu, check-in at Waikiki resort. Day 2: Diamond Head hike at sunrise, afternoon beach. Day 3: Pearl Harbor tour, evening luau. Day 4: North Shore road trip, sunset at Sunset Beach. Day 5: Snorkeling at Hanauma Bay.' },
-    { title: 'Maui Trip Photos', type: 'image', path: '~/Pictures/Vacation/',
+    // ── Finance ──
+    { title: 'Q3 Financial Report.pdf', type: 'pdf', path: '~/Documents/Finance/', size: '2.4 MB', date: 'Oct 14, 2025',
+      content: 'Quarterly revenue reached $4.2M, a 15% increase over Q2. Operating expenses were kept under budget at $2.8M. The board approved the expansion plan for Q4. Key metrics: customer acquisition cost down 12%, lifetime value up 8%. EBITDA margin improved to 34% from 29% last quarter. Recommend reinvesting surplus into the engineering team for the Aurora product line.' },
+    { title: 'Budget 2026 Proposal.docx', type: 'docx', path: '~/Documents/Finance/', size: '185 KB', date: 'Dec 03, 2025',
+      content: 'Proposed budget for fiscal year 2026. Total allocation: $12.5M across departments. Engineering receives the largest share at 40%, followed by marketing at 25%. Includes contingency fund of $750K for unexpected expenses. ROI projections show 3.2x return on the infrastructure budget by Q3 2026.' },
+    { title: 'Annual Revenue Spreadsheet.xlsx', type: 'xlsx', path: '~/Documents/Finance/', size: '412 KB', date: 'Jan 08, 2026',
+      content: 'Year-over-year revenue breakdown by quarter. 2025 total: $16.8M. Q1: $3.1M, Q2: $3.7M, Q3: $4.2M, Q4: $5.8M. Growth rate: 22% annually. Projections for 2026 indicate continued upward trend with conservative estimate of $20.1M total.' },
+    { title: 'Q4 Board Presentation.pptx', type: 'docx', path: '~/Documents/Finance/', size: '8.7 MB', date: 'Jan 12, 2026',
+      content: 'Board deck covering Q4 performance, 2026 roadmap, and capital request. Slide 3: quarterly results summary. Slide 7: competitive landscape analysis. Slide 12: budget ask of $2.1M for infrastructure scaling. Key takeaway: we are ahead of plan on revenue but need to invest in search infrastructure to maintain growth trajectory.' },
+    // ── Travel ──
+    { title: 'Hawaii Vacation Itinerary.pdf', type: 'pdf', path: '~/Documents/Travel/', size: '1.2 MB', date: 'Nov 20, 2025',
+      content: 'Day 1: Arrival in Honolulu, check-in at Waikiki resort. Day 2: Diamond Head hike at sunrise, afternoon beach. Day 3: Pearl Harbor tour, evening luau. Day 4: North Shore road trip, sunset at Sunset Beach. Day 5: Snorkeling at Hanauma Bay. Day 6: Maui — road to Hana. Day 7: Haleakala sunrise, departure.' },
+    { title: 'Maui Trip Photos', type: 'image', path: '~/Pictures/Vacation/', size: '142 items', date: 'Dec 2025',
       content: 'Collection of 142 images from Maui vacation. Highlights include sunrise at Haleakala, road to Hana, black sand beach at Waiʻānapanapa, and sunset at Kaʻanapali Beach.' },
-    { title: 'Team Meeting Notes — October.md', type: 'md', path: '~/Documents/Notes/',
-      content: 'Attendees: Sarah, Mike, Jennifer, David. Discussed quarterly targets and the new product roadmap. Jennifer raised concerns about the timeline for the API refactor. Action items: Mike to draft the RFP by Friday, David to review the budget allocation.' },
-    { title: 'Employee Handbook 2026.pdf', type: 'pdf', path: '~/Documents/HR/',
-      content: 'Welcome to the team. This handbook covers company policies, benefits, code of conduct, and procedures. Vacation accrual: 15 days year 1, 20 days year 3. Remote work policy updated to allow 3 days per week. Review the security section for vault and password guidelines.' },
-    { title: 'Recipe Collection — Italian.docx', type: 'docx', path: '~/Documents/Personal/',
-      content: 'Authentic carbonara: 200g guanciale, 4 egg yolks, 100g Pecorino Romano, 320g spaghetti. Cacio e pepe: simplest pasta — just cheese and pepper. Margherita pizza: San Marzano tomatoes, fresh mozzarella, basil.' },
-    { title: 'Tax Return 2025.pdf', type: 'pdf', path: '~/Documents/Vault/',
-      content: 'Filed jointly. Total income: $148,200. Deductions: mortgage interest $18,400, charitable contributions $4,200, retirement contributions $6,500. Refund: $2,847. Filed electronically on March 12. These documents are in the vault for security.' },
-    { title: 'Project Aurora — Design Spec.pdf', type: 'pdf', path: '~/Documents/Projects/',
-      content: 'Aurora is a next-generation search interface. Key features: typo-tolerant full-text search, image gallery sidebar, filter shortcuts using :: syntax. Privacy is the core design principle — everything runs locally, nothing leaves the machine.' },
-    { title: 'Wedding Venue Shortlist.xlsx', type: 'xlsx', path: '~/Documents/Personal/',
-      content: 'Five venues compared: The Old Mill ($8K, 150 guests), Lakeside Pavilion ($12K, 200), Garden Terrace ($6K, 100), Historic Manor ($15K, 180), Beachfront Resort ($20K, 250). All include catering except Garden Terrace. Budget ceiling: $15K.' },
-    { title: 'Medical Records — Summary.pdf', type: 'pdf', path: '~/Documents/Vault/',
-      content: 'Annual physical results. Blood pressure: 118/76 (normal). Cholesterol: 165 total, HDL 62, LDL 93. All within healthy ranges. Next checkup in 12 months. Stored in vault for privacy — only accessible with password.' },
-    { title: 'Conference Talk — Rust at Scale.md', type: 'md', path: '~/Documents/Talks/',
-      content: 'How we built a search engine in pure Rust that handles 100k documents with sub-50ms query times. Architecture: Axum web server, SQLite for metadata, Meilisearch for full-text indexing. Key insight: local-first doesn\'t mean slow.' },
-    { title: 'House Blueprints.pdf', type: 'pdf', path: '~/Documents/Home/',
-      content: 'Two-story colonial, 2,800 sq ft. Ground floor: kitchen, living room, dining, study, half bath. Second floor: 4 bedrooms, 2 full baths. Basement: unfinished, 1,400 sq ft potential. Renovation budget: $45K for kitchen and master bath.' },
-    { title: 'Sunset at Kaʻanapali', type: 'image', path: '~/Pictures/Vacation/',
+    { title: 'Sunset at Kaʻanapali', type: 'image', path: '~/Pictures/Vacation/', size: '4.1 MB', date: 'Dec 18, 2025',
       content: 'Golden hour over the Pacific. Maui, December 2025. Taken with Sony A7IV, 24-70mm at 35mm, f/8, 1/250s. Part of the Hawaii vacation collection.' },
-    { title: 'Insurance Policy.pdf', type: 'pdf', path: '~/Documents/Vault/',
+    { title: 'Haleakala Sunrise', type: 'image', path: '~/Pictures/Vacation/', size: '3.8 MB', date: 'Dec 20, 2025',
+      content: 'Above the clouds at 10,000 ft elevation. Haleakala National Park crater at dawn. One of the most spectacular sunrises — above the cloud layer with the volcano shadow.' },
+    // ── Notes & Meetings ──
+    { title: 'Team Meeting Notes — October.md', type: 'md', path: '~/Documents/Notes/', size: '12 KB', date: 'Oct 22, 2025',
+      content: 'Attendees: Sarah, Mike, Jennifer, David. Discussed quarterly targets and the new product roadmap. Jennifer raised concerns about the timeline for the API refactor. Action items: Mike to draft the RFP by Friday, David to review the budget allocation for Q4 infrastructure spend.' },
+    { title: 'Product Roadmap 2026.md', type: 'md', path: '~/Documents/Notes/', size: '28 KB', date: 'Jan 05, 2026',
+      content: 'Q1: Ship the local search engine MVP with typo-tolerant indexing. Q2: Add AI-powered summaries using local LLMs. Q3: Image similarity search and OCR for scanned documents. Q4: Mobile companion app for remote indexing. Core principle: everything stays local — no cloud, no telemetry.' },
+    // ── HR & Personal ──
+    { title: 'Employee Handbook 2026.pdf', type: 'pdf', path: '~/Documents/HR/', size: '3.1 MB', date: 'Jan 02, 2026',
+      content: 'Welcome to the team. This handbook covers company policies, benefits, code of conduct, and procedures. Vacation accrual: 15 days year 1, 20 days year 3. Remote work policy updated to allow 3 days per week. Review the security section for vault and password guidelines.' },
+    { title: 'Recipe Collection — Italian.docx', type: 'docx', path: '~/Documents/Personal/', size: '94 KB', date: 'Sep 15, 2025',
+      content: 'Authentic carbonara: 200g guanciale, 4 egg yolks, 100g Pecorino Romano, 320g spaghetti. Cacio e pepe: simplest pasta — just cheese and pepper. Margherita pizza: San Marzano tomatoes, fresh mozzarella, basil. Tiramisu: mascarpone, espresso, ladyfingers, cocoa.' },
+    { title: 'Wedding Venue Shortlist.xlsx', type: 'xlsx', path: '~/Documents/Personal/', size: '67 KB', date: 'Nov 30, 2025',
+      content: 'Five venues compared: The Old Mill ($8K, 150 guests), Lakeside Pavilion ($12K, 200), Garden Terrace ($6K, 100), Historic Manor ($15K, 180), Beachfront Resort ($20K, 250). All include catering except Garden Terrace. Budget ceiling: $15K. Top pick: Lakeside Pavilion for value and capacity.' },
+    // ── Vault (sensitive) ──
+    { title: 'Tax Return 2025.pdf', type: 'pdf', path: '~/Documents/Vault/', size: '890 KB', date: 'Mar 12, 2026',
+      content: 'Filed jointly. Total income: $148,200. Deductions: mortgage interest $18,400, charitable contributions $4,200, retirement contributions $6,500. Refund: $2,847. Filed electronically on March 12. These documents are in the vault for security.' },
+    { title: 'Medical Records — Summary.pdf', type: 'pdf', path: '~/Documents/Vault/', size: '1.4 MB', date: 'Feb 28, 2026',
+      content: 'Annual physical results. Blood pressure: 118/76 (normal). Cholesterol: 165 total, HDL 62, LDL 93. All within healthy ranges. Next checkup in 12 months. Stored in vault for privacy — only accessible with password.' },
+    { title: 'Insurance Policy.pdf', type: 'pdf', path: '~/Documents/Vault/', size: '2.0 MB', date: 'Jan 15, 2026',
       content: 'Homeowners insurance policy. Coverage: $450K dwelling, $225K contents, $300K liability. Deductible: $2,500. Premium: $1,840/year. Effective: January 2026. Stored in vault — contains personal financial details.' },
+    { title: 'Passport Scan.jpg', type: 'image', path: '~/Documents/Vault/', size: '2.3 MB', date: 'Aug 10, 2024',
+      content: 'Scanned copy of passport — biographical page. Stored in the encrypted vault for safekeeping. Accessible only with the master password.' },
+    // ── Projects ──
+    { title: 'Project Aurora — Design Spec.pdf', type: 'pdf', path: '~/Documents/Projects/', size: '5.6 MB', date: 'Jan 18, 2026',
+      content: 'Aurora is a next-generation search interface. Key features: typo-tolerant full-text search, image gallery sidebar, filter shortcuts using :: syntax. Privacy is the core design principle — everything runs locally, nothing leaves the machine. Architecture: Rust backend, SQLite metadata, Meilisearch full-text index.' },
+    { title: 'Conference Talk — Rust at Scale.md', type: 'md', path: '~/Documents/Talks/', size: '34 KB', date: 'Nov 08, 2025',
+      content: 'How we built a search engine in pure Rust that handles 100k documents with sub-50ms query times. Architecture: Axum web server, SQLite for metadata, Meilisearch for full-text indexing. Key insight: local-first doesn\'t mean slow — Rust\'s zero-cost abstractions let us match cloud search performance on a single laptop.' },
+    // ── Home ──
+    { title: 'House Blueprints.pdf', type: 'pdf', path: '~/Documents/Home/', size: '11 MB', date: 'Jul 22, 2024',
+      content: 'Two-story colonial, 2,800 sq ft. Ground floor: kitchen, living room, dining, study, half bath. Second floor: 4 bedrooms, 2 full baths. Basement: unfinished, 1,400 sq ft potential. Renovation budget: $45K for kitchen and master bath.' },
+    { title: 'Mortgage Documents.pdf', type: 'pdf', path: '~/Documents/Home/', size: '3.2 MB', date: 'Jul 15, 2024',
+      content: '30-year fixed mortgage at 5.875% APR. Principal: $420,000. Monthly payment: $2,487. Property at 142 Maplewood Drive. Loan number: 78291-004. Escrow includes property tax and insurance. Maturity date: July 2054.' },
+    // ── Tech / Research ──
+    { title: 'Local-First Software — Principles.md', type: 'md', path: '~/Documents/Research/', size: '18 KB', date: 'Jan 20, 2026',
+      content: 'The seven ideals of local-first software: 1) No spinners — data is instantly available. 2) Multi-device works offline. 3) Collaboration without servers. 4) Longevity — data outlives the app. 5) Privacy by default. 6) User owns the data. 7) Fast and universal. SearchBox embodies ideals 1, 5, and 6 — your files are searched on your machine, nothing leaves.' },
   ];
 
   const TYPE_META = {
@@ -1311,12 +1412,35 @@
     }).slice(0, 8);
 
     // Render results
-    var list = document.getElementById('resultsList');
+    var list = document.getElementById('resultsItems');
     var sidebar = document.getElementById('resultsSidebar');
+    var header = document.getElementById('resultsHeader');
+    var countEl = document.getElementById('resultsCount');
+    var filtersEl = document.getElementById('resultsFilters');
+    var aiSummary = document.getElementById('aiSummary');
+    var aiText = document.getElementById('aiSummaryText');
+
+    // Results count header
+    header.style.display = 'flex';
+    var totalText = results.length === 0 ? 'No results' :
+      (results.length === 1 ? '1 result' : results.length + ' results');
+    // For 3+ results, show "N results (showing 8)" to imply a larger index
+    if (results.length >= 8) totalText = '<strong>14,238</strong> results · showing top 8';
+    else if (results.length > 0) totalText = '<strong>' + results.length + '</strong> result' + (results.length > 1 ? 's' : '');
+    countEl.innerHTML = totalText;
+
+    // Filter chips
+    if (filters.length > 0) {
+      filtersEl.innerHTML = filters.map(function(f) {
+        return '<span class="filter-chip">::' + f + '</span>';
+      }).join('');
+    } else {
+      filtersEl.innerHTML = '';
+    }
 
     if (results.length === 0) {
       list.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-muted);"><p style="font-size:16px; margin-bottom:8px;">No results found</p><p style="font-size:13px;">Try a different word — SearchBox is typo-tolerant, so close matches work too.</p></div>';
-      sidebar.innerHTML = '';
+      aiSummary.style.display = 'none';
     } else {
       list.innerHTML = results.map(function(doc) {
         var meta = TYPE_META[doc.type] || TYPE_META.pdf;
@@ -1335,25 +1459,41 @@
           }
         }
         var snippetHl = q ? highlight(snippet, q) : snippet;
+        var vaultTag = VAULT_DOCS.indexOf(doc.title) !== -1 ? ' 🔒' : '';
         return '<div class="result-item">' +
           '<div class="result-type-badge">' +
             '<span class="result-icon" style="background:' + meta.bg + '; color:' + meta.color + '">' + meta.label + '</span>' +
             '<span style="color:' + meta.color + '">' + meta.label + '</span>' +
             '<span style="opacity:0.5">·</span>' +
             '<span>' + doc.path + '</span>' +
+            '<span class="result-meta">' + (doc.size || '') + ' · ' + (doc.date || '') + '</span>' +
           '</div>' +
           '<div class="result-title">' + titleHl + '</div>' +
           '<div class="result-snippet">' + snippetHl + '</div>' +
         '</div>';
       }).join('');
+
+      // AI summary — appears for text queries (not pure image/vault filters) when there are results
+      if (q && results.length >= 2 && filters.indexOf('image') === -1) {
+        aiSummary.style.display = 'flex';
+        var summary = generateAISummary(text, results);
+        typeAISummary(aiText, summary);
+      } else {
+        aiSummary.style.display = 'none';
+      }
     }
 
     // Image gallery in sidebar — with gradient-based mini thumbnails
     var imageDocs = DOCS.filter(function(d) { return d.type === 'image'; });
     if (imageDocs.length > 0) {
-      var THUMB_CLASS = { 'Sunset at Kaʻanapali': 'thumb-sunset', 'Maui Trip Photos': 'thumb-beach' };
+      var THUMB_CLASS = {
+        'Sunset at Kaʻanapali': 'thumb-sunset',
+        'Maui Trip Photos': 'thumb-beach',
+        'Haleakala Sunrise': 'thumb-sunrise',
+        'Passport Scan.jpg': 'thumb-vault'
+      };
       sidebar.innerHTML =
-        '<h4>Images</h4>' +
+        '<h4>Images (' + imageDocs.length + ')</h4>' +
         '<div class="img-gallery">' +
           imageDocs.slice(0, 4).map(function(d) {
             var tc = THUMB_CLASS[d.title] || 'thumb-doc';
@@ -1366,11 +1506,84 @@
       sidebar.innerHTML = '';
     }
 
-    // Trigger staggered fade-in on result items
-    var items = list.querySelectorAll('.result-item');
-    items.forEach(function(item, i) {
-      setTimeout(function() { item.classList.add('visible'); }, 60 * i);
+    // Trigger staggered fade-in on result items — ONLY when not typing
+    // (during auto-play / active typing we set is-typing to skip animation → no flicker)
+    var scrollContainer = document.getElementById('resultsList');
+    if (!scrollContainer.classList.contains('is-typing')) {
+      var items = list.querySelectorAll('.result-item');
+      items.forEach(function(item, i) {
+        setTimeout(function() { item.classList.add('visible'); }, 60 * i);
+      });
+    }
+  }
+
+  // Track typing state: set is-typing during auto-play & user input, clear after a pause
+  var typingTimer = null;
+  function setTyping(on) {
+    var list = document.getElementById('resultsList');
+    if (!list) return;
+    if (on) {
+      list.classList.add('is-typing');
+    } else {
+      list.classList.remove('is-typing');
+      // Re-trigger stagger animation now that typing paused
+      var items = list.querySelectorAll('.result-item');
+      items.forEach(function(item, i) {
+        item.classList.remove('visible');
+        setTimeout(function() { item.classList.add('visible'); }, 60 * i);
+      });
+    }
+  }
+  function markTyping() {
+    var list = document.getElementById('resultsList');
+    if (list) list.classList.add('is-typing');
+    if (typingTimer) clearTimeout(typingTimer);
+    typingTimer = setTimeout(function() { setTyping(false); }, 400);
+  }
+
+  /* ── AI summary generation (simulated local LLM) ────────────────────────────── */
+  function generateAISummary(query, results) {
+    var q = query.split('::')[0].trim();
+    // Group results by type
+    var types = {};
+    results.forEach(function(r) {
+      types[r.type] = (types[r.type] || 0) + 1;
     });
+    var typeNames = { pdf: 'PDF', docx: 'Word doc', xlsx: 'spreadsheet', md: 'markdown', image: 'image' };
+    var parts = [];
+    for (var t in types) {
+      if (types[t] > 1) parts.push(types[t] + ' ' + (typeNames[t] || t) + 's');
+      else parts.push('1 ' + (typeNames[t] || t));
+    }
+    var typeStr = parts.length ? 'Found ' + parts.join(', ') + '.' : '';
+
+    // Pull a key sentence from the top result
+    var topContent = results[0].content;
+    var firstSentence = topContent.split('.')[0] + '.';
+
+    var summaries = [
+      typeStr + ' The top result — ' + results[0].title + ' — mentions "' + q + '" in the context of ' + firstSentence.toLowerCase().replace(/^(the |a |this )/, '') + ' All analysis ran locally via Ollama.',
+      typeStr + ' Your query "' + q + '" appears most prominently in ' + results[0].title + '. ' + firstSentence + ' No data was sent to any server — this summary was generated on your machine.',
+      typeStr + ' Key finding: ' + results[0].title + ' directly references "' + q + '". ' + firstSentence + ' ' + (results.length > 2 ? 'Two other documents also match — see below.' : ''),
+    ];
+    return summaries[Math.floor(Math.random() * summaries.length)];
+  }
+
+  // Typewriter effect for the AI summary text
+  var aiTypeTimer = null;
+  function typeAISummary(el, text) {
+    if (aiTypeTimer) clearInterval(aiTypeTimer);
+    el.innerHTML = '<span class="ai-cursor"></span>';
+    var i = 0;
+    aiTypeTimer = setInterval(function() {
+      if (i >= text.length) {
+        clearInterval(aiTypeTimer);
+        el.innerHTML = text;
+        return;
+      }
+      i++;
+      el.innerHTML = text.slice(0, i) + '<span class="ai-cursor"></span>';
+    }, 12);
   }
 
   function demoAction(action) {
@@ -1417,10 +1630,12 @@
   function typeInto(input, text, speed, done) {
     var i = 0;
     input.value = '';
+    markTyping();
     function step() {
       if (autoPlayState.stopped) return;
       input.value = text.slice(0, i);
       handleDemoSearch(input.value);
+      markTyping();
       i++;
       if (i <= text.length) {
         autoPlayState.timers.push(setTimeout(step, speed));
@@ -1435,11 +1650,13 @@
     var input = document.getElementById('demoSearchInput');
     var text = input.value;
     var i = text.length;
+    markTyping();
     function step() {
       if (autoPlayState.stopped) return;
       i--;
       input.value = text.slice(0, i);
       handleDemoSearch(input.value);
+      markTyping();
       if (i > 0) {
         autoPlayState.timers.push(setTimeout(step, 30));
       } else if (done) {
