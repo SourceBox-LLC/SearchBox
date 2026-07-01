@@ -445,31 +445,72 @@
       padding: 2px 8px; border-radius: 999px;
     }
 
-    /* AI Summary box */
-    .ai-summary {
-      margin-top: 12px; padding: 12px 14px;
-      background: linear-gradient(135deg, rgba(188,140,255,0.08), rgba(88,166,255,0.05));
-      border: 1px solid rgba(188,140,255,0.2);
+    /* AI Summary — matches the real SearchBox app (top of results, like Google AI Overview) */
+    .ai-summary-container {
+      margin-bottom: 16px; padding: 12px 16px;
+      background: rgba(22, 27, 34, 0.6);
+      border: 1px solid rgba(48, 54, 61, 0.8);
       border-radius: var(--radius-md);
-      display: flex; gap: 10px; align-items: flex-start;
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     }
-    .ai-summary-icon {
-      flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px;
-      background: rgba(188,140,255,0.15); color: var(--purple);
+    .ai-summary-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .ai-summary-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 14px; font-weight: 500; color: var(--text);
+    }
+    .ai-icon-box {
+      width: 26px; height: 26px; border-radius: 6px;
+      background: rgba(188,140,255,0.12); color: var(--purple);
       display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(188,140,255,0.2);
     }
-    .ai-summary-icon svg { width: 14px; height: 14px; }
-    .ai-summary-content { flex: 1; }
-    .ai-summary-label {
-      font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
-      color: var(--purple); font-weight: 600; margin-bottom: 3px;
+    .ai-icon-box svg { width: 15px; height: 15px; }
+    .confidence-badge {
+      padding: 2px 8px; border-radius: 12px;
+      font-size: 11px; font-weight: 500;
+      background: rgba(34,197,94,0.15); color: var(--green);
+      border: 1px solid rgba(34,197,94,0.3);
+    }
+    .summary-refresh {
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; padding: 4px; border-radius: 4px;
+      display: flex; align-items: center; transition: color .15s, background .15s;
+    }
+    .summary-refresh:hover { color: var(--text); background: var(--bg-hover); }
+    .summary-refresh svg { width: 15px; height: 15px; }
+    .ai-summary-body {
+      display: flex; gap: 16px;
     }
     .ai-summary-text {
-      font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
+      flex: 1; min-width: 0;
+      font-size: 13.5px; line-height: 1.6; color: var(--text-secondary);
     }
     .ai-summary-text .ai-cursor {
-      display: inline-block; width: 6px; height: 13px; background: var(--purple);
-      vertical-align: middle; margin-left: 1px; animation: blink 1s steps(1) infinite;
+      display: inline-block; width: 6px; height: 14px; background: var(--purple);
+      vertical-align: text-bottom; margin-left: 1px; animation: blink 1s steps(1) infinite;
+    }
+    .ai-summary-sources {
+      flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;
+    }
+    .source-card {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 6px;
+      background: rgba(22, 27, 34, 0.6);
+      border: 1px solid rgba(48, 54, 61, 0.5);
+      font-size: 12px;
+    }
+    .source-icon-sm {
+      width: 24px; height: 24px; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; font-family: var(--mono); flex-shrink: 0;
+    }
+    .source-name {
+      color: var(--text); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 130px;
     }
     @keyframes blink { 0%,49% {opacity:1;} 50%,100% {opacity:0;} }
     .result-icon {
@@ -894,18 +935,28 @@
                 </div>
                 <div class="results-container">
                   <div class="results-main" id="resultsList">
+                    <!-- AI Summary — at the TOP, like Google AI Overview / real SearchBox -->
+                    <div class="ai-summary-container" id="aiSummary" style="display:none;">
+                      <div class="ai-summary-header">
+                        <div class="ai-summary-title">
+                          <span class="ai-icon-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg></span>
+                          <span>AI Summary</span>
+                          <span class="confidence-badge" id="confidenceBadge">High</span>
+                        </div>
+                        <button class="summary-refresh" id="summaryRefresh" title="Regenerate summary">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        </button>
+                      </div>
+                      <div class="ai-summary-body">
+                        <div class="ai-summary-text" id="aiSummaryText"></div>
+                        <div class="ai-summary-sources" id="aiSummarySources"></div>
+                      </div>
+                    </div>
                     <div class="results-header" id="resultsHeader" style="display:none;">
                       <span class="results-count" id="resultsCount"></span>
                       <div class="results-filters" id="resultsFilters"></div>
                     </div>
                     <div id="resultsItems"></div>
-                    <div class="ai-summary" id="aiSummary" style="display:none;">
-                      <div class="ai-summary-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg></div>
-                      <div class="ai-summary-content">
-                        <div class="ai-summary-label">AI Summary · Ollama (local)</div>
-                        <div class="ai-summary-text" id="aiSummaryText"></div>
-                      </div>
-                    </div>
                   </div>
                   <div class="results-sidebar" id="resultsSidebar"></div>
                 </div>
@@ -1473,11 +1524,26 @@
         '</div>';
       }).join('');
 
-      // AI summary — appears for text queries (not pure image/vault filters) when there are results
+      // AI summary — appears at the TOP for text queries (not pure image filters) with results
       if (q && results.length >= 2 && filters.indexOf('image') === -1) {
-        aiSummary.style.display = 'flex';
+        aiSummary.style.display = 'block';
         var summary = generateAISummary(text, results);
         typeAISummary(aiText, summary);
+        // Render source cards from the top 2 results
+        var sourcesEl = document.getElementById('aiSummarySources');
+        if (sourcesEl && results.length >= 2) {
+          var top2 = results.slice(0, 2);
+          sourcesEl.innerHTML = top2.map(function(doc) {
+            var meta = TYPE_META[doc.type] || TYPE_META.pdf;
+            var shortName = doc.title.replace(/\.[^.]+$/, '').slice(0, 18);
+            return '<div class="source-card">' +
+              '<span class="source-icon-sm" style="background:' + meta.bg + ';color:' + meta.color + '">' + meta.label + '</span>' +
+              '<span class="source-name">' + shortName + '</span>' +
+            '</div>';
+          }).join('');
+        } else {
+          sourcesEl.innerHTML = '';
+        }
       } else {
         aiSummary.style.display = 'none';
       }
