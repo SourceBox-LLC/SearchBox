@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SearchBox — Find anything on your computer, completely private</title>
+  <meta name="description" content="SearchBox looks inside your files — PDFs, Word docs, spreadsheets, images — and finds what you're after in a blink, even if you don't remember the exact words. Everything runs on your own computer. Nothing is uploaded.">
+  <meta property="og:title" content="SearchBox — Your local document search engine">
+  <meta property="og:description" content="Find anything on your computer — instantly, and completely private. Nothing leaves your machine.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="screenshots/home.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SearchBox — Your local document search engine">
+  <meta name="twitter:description" content="Find anything on your computer — instantly, and completely private.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230d1117'/><text x='50' y='72' font-size='62' font-weight='700' text-anchor='middle' fill='%2358a6ff' font-family='sans-serif'>S</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Design tokens (matching SearchBox's actual UI) ─────────────────────── */
+    :root {
+      --bg: #0d1117;
+      --bg-elevated: #161b22;
+      --bg-hover: #21262d;
+      --border: #30363d;
+      --border-subtle: rgba(255,255,255,0.06);
+      --border-standard: rgba(255,255,255,0.1);
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --accent-dim: rgba(88,166,255,0.15);
+      --text: #f0f6fc;
+      --text-secondary: #c9d1d9;
+      --text-muted: #8b949e;
+      --text-faint: #484f58;
+      --green: #3fb950;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --orange: #e8873c;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --max-w: 1140px;
+      --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { color: var(--accent-hover); }
+
+    ::selection { background: var(--accent-dim); color: var(--text); }
+
+    img { max-width: 100%; display: block; }
+
+    /* ── Ambient background glow ────────────────────────────────────────────── */
+    .ambient {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+    }
+    .ambient::before, .ambient::after {
+      content: ''; position: absolute; border-radius: 50%; filter: blur(120px);
+    }
+    .ambient::before {
+      width: 600px; height: 600px; top: -200px; left: -150px;
+      background: radial-gradient(circle, rgba(88,166,255,0.12), transparent 70%);
+    }
+    .ambient::after {
+      width: 500px; height: 500px; top: 200px; right: -100px;
+      background: radial-gradient(circle, rgba(188,140,255,0.08), transparent 70%);
+    }
+
+    /* ── Container ─────────────────────────────────────────────────────────── */
+    .container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+    /* ── Navigation ─────────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,17,23,0.8);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    nav .container {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 20px; font-weight: 700; letter-spacing: -0.5px;
+    }
+    .logo-mark {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent); font-size: 18px; font-weight: 800;
+    }
+    .logo .accent { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a {
+      color: var(--text-secondary); font-size: 14px; font-weight: 500;
+      transition: color .15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent); color: #0a0a0a !important;
+      padding: 7px 16px; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 600; transition: all .15s;
+    }
+    .nav-cta:hover { background: var(--accent-hover); color: #0a0a0a !important; transform: translateY(-1px); }
+    .hamburger { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 4px; }
+    .hamburger svg { width: 24px; height: 24px; }
+
+    /* ── Buttons ────────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 24px; border-radius: var(--radius-sm);
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: all .18s ease; border: none; text-decoration: none;
+      font-family: var(--font);
+    }
+    .btn-primary {
+      background: var(--accent); color: #0a0a0a;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover); transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(88,166,255,0.3);
+    }
+    .btn-secondary {
+      background: var(--bg-elevated); color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-hover); border-color: var(--text-muted); transform: translateY(-2px);
+    }
+    .btn-lg { padding: 14px 32px; font-size: 16px; }
+
+    /* ── Hero ───────────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 80px 0 60px; text-align: center; position: relative;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      font-size: 13px; color: var(--text-secondary); margin-bottom: 28px;
+      animation: fadeIn .6s ease both;
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 64px); font-weight: 800;
+      line-height: 1.05; letter-spacing: -2px;
+      margin-bottom: 24px; animation: fadeIn .6s .1s ease both;
+    }
+    .hero h1 .accent { color: var(--accent); }
+    .hero h1 .privacy {
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero .lead {
+      font-size: clamp(17px, 2.2vw, 21px); color: var(--text-secondary);
+      max-width: 620px; margin: 0 auto 40px; font-weight: 400;
+      line-height: 1.6; animation: fadeIn .6s .2s ease both;
+    }
+    .hero-ctas {
+      display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 16px; animation: fadeIn .6s .3s ease both;
+    }
+    .hero-meta {
+      font-size: 13px; color: var(--text-muted); margin-top: 4px;
+      animation: fadeIn .6s .4s ease both;
+    }
+    .hero-meta .sep { margin: 0 8px; opacity: 0.4; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Interactive Demo ────────────────────────────────────────────────────── */
+    .demo-wrapper {
+      margin: 48px auto 0; max-width: 880px;
+      animation: fadeIn .8s .5s ease both;
+    }
+    .demo-frame {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(88,166,255,0.05);
+      overflow: hidden;
+    }
+    /* Title bar */
+    .demo-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; background: #010409;
+      border-bottom: 1px solid var(--border);
+    }
+    .demo-traffic { display: flex; gap: 7px; }
+    .demo-traffic span {
+      width: 12px; height: 12px; border-radius: 50%;
+    }
+    .demo-traffic span:nth-child(1) { background: #ff5f56; }
+    .demo-traffic span:nth-child(2) { background: #ffbd2e; }
+    .demo-traffic span:nth-child(3) { background: #27c93f; }
+    .demo-titlebar .title {
+      font-size: 12px; color: var(--text-muted); margin-left: auto; margin-right: auto;
+      font-family: var(--mono); letter-spacing: 0.3px;
+    }
+    /* Demo body — the simulated SearchBox app */
+    .demo-body {
+      display: flex; flex-direction: column; min-height: 460px;
+      background: var(--bg);
+    }
+    .demo-topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; border-bottom: 1px solid var(--border-subtle);
+    }
+    .demo-logo {
+      font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+    }
+    .demo-logo .accent { color: var(--accent); }
+    .demo-topbar-icons { display: flex; align-items: center; gap: 16px; color: var(--text-muted); }
+    .demo-topbar-icons svg { width: 18px; height: 18px; cursor: pointer; }
+    .demo-topbar-icons .notif { position: relative; }
+    .demo-topbar-icons .notif::after {
+      content: ''; position: absolute; top: -2px; right: -2px;
+      width: 7px; height: 7px; border-radius: 50%; background: var(--red);
+      border: 1px solid var(--bg);
+    }
+
+    .demo-content {
+      flex: 1; padding: 40px 24px 24px; display: flex; flex-direction: column;
+      align-items: center;
+    }
+    .demo-content.has-results { align-items: stretch; padding-top: 24px; }
+
+    .demo-homestate { text-align: center; width: 100%; }
+    .demo-content .demo-title {
+      font-size: 30px; font-weight: 800; letter-spacing: -1px; margin-bottom: 6px;
+    }
+    .demo-content .demo-title .accent { color: var(--accent); }
+    .demo-content .demo-subtitle {
+      font-size: 13px; color: var(--text-muted); margin-bottom: 28px;
+    }
+    .demo-content .demo-subtitle .powered { color: var(--accent); }
+
+    /* The search bar — pill shaped, matching SearchBox */
+    .demo-search-wrap {
+      width: 100%; max-width: 540px; position: relative; margin-bottom: 24px;
+    }
+    .demo-search {
+      width: 100%; padding: 12px 48px 12px 20px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 999px; color: var(--text);
+      font-size: 15px; font-family: var(--font); outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .demo-search::placeholder { color: var(--text-muted); }
+    .demo-search:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .demo-search-icon {
+      position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+      color: var(--accent); pointer-events: none;
+    }
+    .demo-search-icon svg { width: 18px; height: 18px; }
+
+    .demo-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .demo-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); background: var(--bg-elevated);
+      color: var(--text-secondary); transition: all .15s;
+    }
+    .demo-btn:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-muted); }
+    .demo-btn svg { width: 15px; height: 15px; }
+    .demo-btn.primary {
+      background: var(--accent); color: #0a0a0a; border-color: var(--accent);
+    }
+    .demo-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    /* Shortcut chips */
+    .demo-shortcuts {
+      display: flex; gap: 10px; justify-content: center; margin-top: 32px;
+      flex-wrap: wrap;
+    }
+    .demo-shortcut {
+      width: 84px; height: 84px; border-radius: var(--radius-md);
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; cursor: pointer; transition: all .15s;
+      color: var(--accent); font-size: 22px;
+    }
+    .demo-shortcut:hover {
+      background: var(--bg-hover); border-color: var(--border);
+      transform: translateY(-2px);
+    }
+    .demo-shortcut span { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Search results layout ──────────────────────────────────────────────── */
+    .results-container {
+      display: flex; gap: 20px; width: 100%; height: 340px;
+    }
+    .results-main {
+      flex: 1; overflow-y: auto; padding-right: 4px;
+    }
+    .results-main::-webkit-scrollbar { width: 6px; }
+    .results-main::-webkit-scrollbar-track { background: transparent; }
+    .results-main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .results-sidebar {
+      width: 200px; flex-shrink: 0;
+      border-left: 1px solid var(--border-subtle); padding-left: 20px;
+    }
+    .results-sidebar h4 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-muted); margin-bottom: 12px; font-weight: 600;
+    }
+    .img-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .img-gallery-item {
+      aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden;
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; cursor: pointer; transition: transform .15s;
+    }
+    .img-gallery-item:hover { transform: scale(1.05); }
+    .img-gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+    .img-gallery-item .placeholder {
+      font-size: 10px; color: var(--text-faint); padding: 4px; text-align: center;
+      word-break: break-word;
+    }
+
+    .result-item {
+      padding: 14px 0; border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer; transition: padding .15s;
+    }
+    .result-item:hover { padding-left: 8px; }
+    .result-item:last-child { border-bottom: none; }
+    .result-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 16px; border-radius: 3px; font-size: 9px;
+      font-weight: 600; font-family: var(--mono);
+      margin-right: 8px; vertical-align: middle; flex-shrink: 0;
+      padding: 0 3px;
+    }
+    .result-type-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--text-muted); font-family: var(--mono);
+      margin-bottom: 4px;
+    }
+    .result-title {
+      font-size: 15px; font-weight: 600; color: var(--accent);
+      margin-bottom: 4px; line-height: 1.4;
+    }
+    .result-snippet {
+      font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+    }
+    mark { background: var(--accent-dim); color: var(--accent); padding: 1px 3px; border-radius: 3px; font-weight: 500; }
+
+    .demo-hint {
+      font-size: 12px; color: var(--text-faint); text-align: center;
+      margin-top: 16px; font-family: var(--mono);
+    }
+    .demo-hint code { color: var(--accent); }
+
+    .demo-footer {
+      padding: 8px 20px; border-top: 1px solid var(--border-subtle);
+      display: flex; justify-content: space-between; font-size: 11px; color: var(--text-faint);
+    }
+
+    /* ── Sections ───────────────────────────────────────────────────────────── */
+    section { padding: 100px 0; }
+    .section-label {
+      display: inline-block; font-family: var(--mono); font-size: 13px;
+      color: var(--accent); letter-spacing: 0.5px; margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px); font-weight: 700;
+      letter-spacing: -1.2px; line-height: 1.15; margin-bottom: 16px;
+    }
+    .section-desc {
+      font-size: 18px; color: var(--text-secondary); max-width: 600px;
+      margin-bottom: 56px; line-height: 1.6;
+    }
+
+    /* ── Features grid ──────────────────────────────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .feature-card {
+      padding: 28px 24px; border-radius: var(--radius-lg);
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      transition: all .2s; position: relative; overflow: hidden;
+    }
+    .feature-card:hover {
+      border-color: var(--border);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .feature-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0; transition: opacity .2s;
+    }
+    .feature-card:hover::before { opacity: 1; }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      background: var(--bg-hover); border: 1px solid var(--border);
+      color: var(--accent);
+    }
+    .feature-icon svg { width: 22px; height: 22px; }
+    .feature-card h3 {
+      font-size: 18px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.3px;
+    }
+    .feature-card p {
+      font-size: 14px; color: var(--text-muted); line-height: 1.6;
+    }
+
+    /* ── Privacy section ────────────────────────────────────────────────────── */
+    .privacy-section { background: #010409; }
+    .privacy-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    }
+    .privacy-visual {
+      position: relative; display: flex; align-items: center; justify-content: center;
+      min-height: 320px;
+    }
+    .privacy-shield {
+      width: 200px; height: 200px; border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .privacy-shield svg { width: 80px; height: 80px; color: var(--accent); z-index: 2; }
+    .privacy-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 2px solid var(--accent); opacity: 0.2;
+      animation: ringExpand 3s ease-in-out infinite;
+    }
+    .privacy-ring:nth-child(3) { animation-delay: 1s; }
+    .privacy-ring:nth-child(4) { animation-delay: 2s; }
+    @keyframes ringExpand {
+      0% { transform: scale(1); opacity: 0.3; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+    .privacy-points { list-style: none; }
+    .privacy-points li {
+      display: flex; gap: 14px; padding: 16px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .privacy-points li:last-child { border-bottom: none; }
+    .privacy-points .check {
+      flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+      background: var(--accent-dim); color: var(--green);
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+      margin-top: 2px;
+    }
+    .privacy-points strong { display: block; font-size: 16px; margin-bottom: 4px; font-weight: 600; }
+    .privacy-points span { font-size: 14px; color: var(--text-muted); }
+
+    /* ── Screenshots showcase ───────────────────────────────────────────────── */
+    .showcase {
+      display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: start;
+    }
+    .showcase-main {
+      border-radius: var(--radius-lg); overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    }
+    .showcase-main img { width: 100%; }
+    .showcase-side { display: flex; flex-direction: column; gap: 16px; }
+    .showcase-card {
+      border-radius: var(--radius-md); overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .showcase-card img { width: 100%; }
+    .showcase-caption {
+      font-size: 13px; color: var(--text-muted); text-align: center; margin-top: 12px;
+    }
+
+    /* ── Download section ────────────────────────────────────────────────────── */
+    .download-section { text-align: center; }
+    .download-cards {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+      max-width: 900px; margin: 0 auto;
+    }
+    .download-card {
+      padding: 32px 24px; border-radius: var(--radius-lg);
+      background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+      text-align: center; transition: all .2s; position: relative;
+    }
+    .download-card.recommended {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), 0 12px 40px rgba(88,166,255,0.15);
+    }
+    .download-card:hover { transform: translateY(-3px); border-color: var(--border); }
+    .download-card .tag {
+      position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #0a0a0a; font-size: 11px; font-weight: 600;
+      padding: 3px 12px; border-radius: 999px; white-space: nowrap;
+    }
+    .download-icon {
+      width: 48px; height: 48px; margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-md); background: var(--bg-hover);
+      border: 1px solid var(--border); color: var(--accent);
+    }
+    .download-icon svg { width: 26px; height: 26px; }
+    .download-card h4 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .download-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+    .download-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 14px; font-weight: 600; color: var(--accent);
+    }
+    .download-link:hover { color: var(--accent-hover); }
+
+    /* ── FAQ ─────────────────────────────────────────────────────────────────── */
+    .faq-list { max-width: 760px; margin: 0 auto; }
+    .faq-item {
+      border-bottom: 1px solid var(--border-subtle); padding: 4px 0;
+    }
+    .faq-item:first-child { border-top: 1px solid var(--border-subtle); }
+    .faq-question {
+      width: 100%; background: none; border: none; color: var(--text);
+      text-align: left; padding: 20px 0; font-size: 17px; font-weight: 500;
+      cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+      font-family: var(--font);
+    }
+    .faq-question .chevron { color: var(--text-muted); transition: transform .2s; flex-shrink: 0; margin-left: 16px; }
+    .faq-question:hover { color: var(--accent); }
+    .faq-item.open .chevron { transform: rotate(180deg); }
+    .faq-answer {
+      max-height: 0; overflow: hidden; transition: max-height .3s ease;
+    }
+    .faq-answer-inner {
+      padding: 0 0 20px; font-size: 15px; color: var(--text-muted); line-height: 1.7;
+    }
+    .faq-answer-inner code {
+      font-family: var(--mono); font-size: 13px;
+      background: var(--bg-elevated); padding: 2px 6px; border-radius: 4px;
+      color: var(--text-secondary);
+    }
+    .faq-answer-inner a { color: var(--accent); }
+
+    /* ── CTA banner ──────────────────────────────────────────────────────────── */
+    .cta-banner {
+      text-align: center; padding: 80px 24px;
+      background: linear-gradient(135deg, var(--bg-elevated), #010409);
+      border: 1px solid var(--border); border-radius: var(--radius-xl);
+      max-width: 900px; margin: 0 auto;
+      position: relative; overflow: hidden;
+    }
+    .cta-banner::before {
+      content: ''; position: absolute; top: -50%; left: 50%; transform: translateX(-50%);
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-dim), transparent 60%);
+    }
+    .cta-banner > * { position: relative; }
+    .cta-banner h2 {
+      font-size: clamp(28px, 4vw, 40px); font-weight: 800;
+      letter-spacing: -1px; margin-bottom: 16px;
+    }
+    .cta-banner p { font-size: 18px; color: var(--text-secondary); margin-bottom: 32px; }
+
+    /* ── Footer ───────────────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 60px 0 40px; margin-top: 40px;
+    }
+    .footer-grid {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px;
+      margin-bottom: 40px;
+    }
+    .footer-brand .logo { margin-bottom: 16px; }
+    .footer-brand p { font-size: 14px; color: var(--text-muted); max-width: 300px; line-height: 1.6; }
+    .footer-col h5 {
+      font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-muted); margin-bottom: 16px; font-weight: 600;
+    }
+    .footer-col ul { list-style: none; }
+    .footer-col li { margin-bottom: 10px; }
+    .footer-col a { font-size: 14px; color: var(--text-secondary); }
+    .footer-col a:hover { color: var(--accent); }
+    .footer-bottom {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 32px; border-top: 1px solid var(--border-subtle);
+      font-size: 13px; color: var(--text-muted);
+    }
+    .footer-bottom .badges { display: flex; gap: 12px; align-items: center; }
+    .footer-bottom .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; color: var(--text-muted);
+      padding: 4px 10px; border-radius: 999px;
+      background: var(--bg-elevated); border: 1px solid var(--border);
+    }
+    .footer-bottom .badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .footer-bottom .badge .dot.green { background: var(--green); }
+    .footer-bottom .badge .dot.blue { background: var(--accent); }
+
+    /* ── Responsive ──────────────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .nav-links { display: none; }
+      .nav-links.show-mobile {
+        display: flex; position: absolute; top: 60px; left: 0; right: 0;
+        flex-direction: column; background: var(--bg-elevated);
+        border-bottom: 1px solid var(--border); padding: 16px 24px; gap: 16px;
+      }
+      .hamburger { display: block; }
+      .features-grid { grid-template-columns: 1fr; }
+      .privacy-grid { grid-template-columns: 1fr; gap: 40px; }
+      .privacy-visual { order: -1; min-height: 240px; }
+      .showcase { grid-template-columns: 1fr; }
+      .download-cards { grid-template-columns: 1fr; }
+      .results-sidebar { display: none; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .footer-bottom { flex-direction: column; gap: 16px; text-align: center; }
+    }
+    @media (max-width: 520px) {
+      .footer-grid { grid-template-columns: 1fr; }
+      .demo-shortcuts { display: none; }
+      section { padding: 60px 0; }
+      .hero { padding: 50px 0 40px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"></div>
+
+  <!-- ── Navigation ──────────────────────────────────────────────────────────── -->
+  <nav>
+    <div class="container">
+      <a href="#" class="logo">
+        <span class="logo-mark">S</span>
+        <span><span class="accent">Search</span>Box</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#demo">Demo</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#download">Download</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/SourceBox-LLC/SearchBox" class="nav-cta">★ Star on GitHub</a>
+      </div>
+      <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('show-mobile')" aria-label="Menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+  <header class="hero">
+    <div class="container">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Local-first · Open source · v0.3.17
+      </div>
+      <h1>Find anything on your computer —<br><span class="privacy">completely private</span>.</h1>
+      <p class="lead">
+        SearchBox looks <em>inside</em> your files — PDFs, Word docs, spreadsheets, images —
+        and finds what you're after in a blink, even if you don't remember the exact words.
+        Everything runs on your own computer. Nothing is uploaded, tracked, or sent anywhere.
+      </p>
+      <div class="hero-ctas">
+        <a href="#download" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Download for Windows
+        </a>
+        <a href="#demo" class="btn btn-secondary btn-lg">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Try the live demo
+        </a>
+      </div>
+      <p class="hero-meta">
+        Free &amp; open source (AGPL-3.0)
+        <span class="sep">·</span> Windows 10 &amp; 11
+        <span class="sep">·</span> No account required to download
+      </p>
+
+      <!-- ── Interactive Demo ─────────────────────────────────────────────────── -->
+      <div class="demo-wrapper" id="demo">
+        <div class="demo-frame">
+          <!-- Title bar -->
+          <div class="demo-titlebar">
+            <div class="demo-traffic"><span></span><span></span><span></span></div>
+            <span class="title">SearchBox — localhost:8080</span>
+            <div style="width:48px"></div>
+          </div>
+          <!-- App body -->
+          <div class="demo-body">
+            <div class="demo-topbar">
+              <span class="demo-logo"><span class="accent">Search</span>Box</span>
+              <div class="demo-topbar-icons">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                <div class="notif"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              </div>
+            </div>
+
+            <div class="demo-content" id="demoContent">
+              <!-- Home state -->
+              <div class="demo-homestate" id="homeState">
+                <h2 class="demo-title"><span class="accent">Search</span>Box</h2>
+                <p class="demo-subtitle">Local Document Search Engine · Powered by <span class="powered">SourceBox</span></p>
+
+                <div class="demo-search-wrap">
+                  <input type="text" class="demo-search" id="demoSearchInput"
+                    placeholder="Search your documents... Try 'budget ::pdf'" autocomplete="off"
+                    oninput="handleDemoSearch(this.value)" />
+                  <span class="demo-search-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  </span>
+                </div>
+
+                <div class="demo-actions">
+                  <button class="demo-btn primary" onclick="demoAction('documents')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    Search Documents
+                  </button>
+                  <button class="demo-btn" onclick="demoAction('images')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    Search Images
+                  </button>
+                  <button class="demo-btn" onclick="demoAction('explore')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    Explore
+                  </button>
+                </div>
+
+                <div class="demo-shortcuts">
+                  <div class="demo-shortcut" onclick="demoAction('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>Tax Return</span></div>
+                  <div class="demo-shortcut" onclick="demoAction('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Maui Photos</span></div>
+                  <div class="demo-shortcut" onclick="demoAction('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg><span>Wikipedia</span></div>
+                  <div class="demo-shortcut" onclick="demoAction('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Vault</span></div>
+                  <div class="demo-shortcut" onclick="demoAction('explore')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg><span>Recipes</span></div>
+                </div>
+              </div>
+
+              <!-- Results state (hidden initially) -->
+              <div id="resultsState" style="display:none; width:100%;">
+                <div class="demo-search-wrap" style="max-width:100%; margin-bottom:16px;">
+                  <input type="text" class="demo-search" id="demoSearchInput2"
+                    placeholder="Search your documents..." autocomplete="off"
+                    oninput="handleDemoSearch(this.value)" />
+                  <span class="demo-search-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                  </span>
+                </div>
+                <div class="results-container">
+                  <div class="results-main" id="resultsList"></div>
+                  <div class="results-sidebar" id="resultsSidebar"></div>
+                </div>
+                <p class="demo-hint">Try: <code>budget ::pdf</code> · <code>vacation ::image</code> · <code>quarterly</code> · or just type a typo like <code>quartarly</code></p>
+              </div>
+            </div>
+
+            <div class="demo-footer">
+              <span>Open Source · Self-Hosted · Private</span>
+              <span id="demoIndexCount">0 documents indexed</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Features ─────────────────────────────────────────────────────────────── -->
+  <section id="features">
+    <div class="container">
+      <span class="section-label">Features</span>
+      <h2 class="section-title">Everything you need to find<br>what you forgot you had.</h2>
+      <p class="section-desc">SearchBox reads the actual contents of your files — not just the names — so you find the right thing even when you don't remember what you called it.</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></div>
+          <h3>Search everything</h3>
+          <p>Type a word or phrase; SearchBox searches the contents of your files, not just their names.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9V3z"/></svg></div>
+          <h3>Forgiving search</h3>
+          <p>Typos are fine — it still finds what you meant. Powered by typo-tolerant full-text search.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+          <h3>Point it at a folder</h3>
+          <p>Pick any folder and SearchBox reads everything inside so it's all searchable in seconds.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>
+          <h3>Index ZIP &amp; ZIM archives</h3>
+          <p>Point it at a .zip or an offline-Wikipedia .zim (Kiwix) and it reads everything inside — articles and all.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
+          <h3>Browse your images</h3>
+          <p>A built-in gallery and an "Explore" view to flip through everything visually.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div>
+          <h3>Private vault</h3>
+          <p>Upload sensitive files and lock them behind your password — AES-256 encrypted on disk.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4M8 16h.01M16 16h.01"/></svg></div>
+          <h3>AI summaries (optional)</h3>
+          <p>Connect a free local AI (Ollama) and get a short summary of your results — still 100% on your machine.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg></div>
+          <h3>Bookmarks &amp; history</h3>
+          <p>Pin your most-used documents and jump back to recent searches with a single click.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg></div>
+          <h3>Open files in the app</h3>
+          <p>Read PDFs, Word docs, and notes right inside SearchBox — no external apps needed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Privacy ─────────────────────────────────────────────────────────────── -->
+  <section id="privacy" class="privacy-section">
+    <div class="container">
+      <div class="privacy-grid">
+        <div class="privacy-visual">
+          <div class="privacy-shield">
+            <div class="privacy-ring"></div>
+            <div class="privacy-ring"></div>
+            <div class="privacy-ring"></div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+        </div>
+        <div>
+          <span class="section-label">Privacy</span>
+          <h2 class="section-title">Your files never leave<br>your computer.</h2>
+          <p class="section-desc">No ads. No tracking. No cloud account. No phoning home. SearchBox is local-first by design.</p>
+          <ul class="privacy-points">
+            <li>
+              <span class="check">✓</span>
+              <div>
+                <strong>Nothing leaves your computer</strong>
+                <span>No ads, no tracking, no cloud account, no phoning home. Ever.</span>
+              </div>
+            </li>
+            <li>
+              <span class="check">✓</span>
+              <div>
+                <strong>Runs on localhost only</strong>
+                <span>SearchBox and its search index listen on 127.0.0.1 — not your network — so your files and index stay on your machine.</span>
+              </div>
+            </li>
+            <li>
+              <span class="check">✓</span>
+              <div>
+                <strong>Your vault is encrypted</strong>
+                <span>Files in the vault are AES-256 encrypted with your password. They can't be read without it.</span>
+              </div>
+            </li>
+            <li>
+              <span class="check">✓</span>
+              <div>
+                <strong>Recovery key for password reset</strong>
+                <span>During setup, you'll download a recovery key. Save it — if you forget your password, it lets you reset it and keep your vault.</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Showcase ─────────────────────────────────────────────────────────────── -->
+  <section id="showcase">
+    <div class="container">
+      <span class="section-label">See it in action</span>
+      <h2 class="section-title">A clean, focused search experience.</h2>
+      <p class="section-desc">No clutter, no distractions — just you and your files.</p>
+      <div class="showcase">
+        <div>
+          <div class="showcase-main">
+            <img src="screenshots/home.png" alt="SearchBox home screen — a single search bar over a clean, dark interface">
+          </div>
+          <p class="showcase-caption">The home screen — one search bar, three actions, zero clutter.</p>
+        </div>
+        <div class="showcase-side">
+          <div>
+            <div class="showcase-card">
+              <img src="screenshots/searchboxWindowsLookupSnip.png" alt="Launching SearchBox from the Windows Start menu">
+            </div>
+            <p class="showcase-caption">Launch from the Windows Start menu like any app.</p>
+          </div>
+          <div style="padding: 24px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">Search shortcuts</h3>
+            <div style="font-family: var(--mono); font-size: 13px; color: var(--text-secondary); line-height: 2;">
+              <div><span style="color:var(--accent)">::pdf</span> — PDF files only</div>
+              <div><span style="color:var(--accent)">::docx</span> — Word documents</div>
+              <div><span style="color:var(--accent)">::xlsx</span> — Excel spreadsheets</div>
+              <div><span style="color:var(--accent)">::image</span> — image gallery</div>
+              <div><span style="color:var(--accent)">::vault</span> — private vault only</div>
+            </div>
+            <p style="font-size: 12px; color: var(--text-faint); margin-top: 12px;">Combine with <span style="color:var(--accent)">::&&</span> (and), <span style="color:var(--accent)">::||</span> (or), <span style="color:var(--accent)">::!</span> (not).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Download ─────────────────────────────────────────────────────────────── -->
+  <section id="download" class="download-section">
+    <div class="container">
+      <span class="section-label">Get SearchBox</span>
+      <h2 class="section-title">Download. Install. Search.</h2>
+      <p class="section-desc" style="margin: 0 auto 56px;">Free, open source, and yours to keep. No setup, no technical steps.</p>
+
+      <div class="download-cards">
+        <div class="download-card recommended">
+          <span class="tag">Recommended</span>
+          <div class="download-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5.5l9-2 9 2v13L12 21 3 18.5v-13z"/><path d="M3 5.5L12 7.5l9-2M12 21V7.5"/></svg></div>
+          <h4>Windows (x86_64)</h4>
+          <p>Most PCs — Intel &amp; AMD</p>
+          <a href="https://github.com/SourceBox-LLC/SearchBox/releases/latest" class="download-link">
+            Download MSI
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="download-card">
+          <div class="download-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <h4>Windows (ARM64)</h4>
+          <p>Snapdragon laptops</p>
+          <a href="https://github.com/SourceBox-LLC/SearchBox/releases/latest" class="download-link">
+            Download MSI
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="download-card">
+          <div class="download-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v.01M10 10v.01M14 10v.01M18 10v.01M7 14h10"/></svg></div>
+          <h4>Docker</h4>
+          <p>Linux, macOS, Windows</p>
+          <a href="https://github.com/SourceBox-LLC/SearchBox#other-ways-to-run-it" class="download-link">
+            View instructions
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <p style="margin-top: 32px; font-size: 14px; color: var(--text-muted);">
+        Runs on <strong style="color:var(--text)">Windows 10 &amp; 11</strong>.
+        Windows may show a "publisher not recognized" notice — click <strong>More info → Run anyway</strong>.
+        On Windows 10, you may need the free WebView2 component (automatic on Windows 11).
+      </p>
+    </div>
+  </section>
+
+  <!-- ── FAQ ─────────────────────────────────────────────────────────────────── -->
+  <section id="faq">
+    <div class="container">
+      <span class="section-label">FAQ</span>
+      <h2 class="section-title" style="text-align:center">Questions people ask.</h2>
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Is it really free? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            Yes — free and open source under the AGPL-3.0 license. No paid tiers, no premium version, no in-app purchases. The code is on <a href="https://github.com/SourceBox-LLC/SearchBox">GitHub</a> for anyone to inspect, modify, and contribute to.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Do I need an internet connection? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            No. SearchBox works entirely offline. The only exception is the optional AI summary feature, and even that runs locally on your own machine once it's set up with <a href="https://ollama.com">Ollama</a>.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Where are my files and data stored? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            Your search index and settings live in <code>%LocalAppData%\SearchBox</code> on your PC. Uninstalling SearchBox leaves your data right where it is — you won't lose your index by updating or removing the app.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Can it search inside PDFs and Word documents? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            Yes. SearchBox extracts text from PDFs (<code>pdf-extract</code>), Word docs (<code>quick-xml</code> + <code>zip</code>), Excel spreadsheets (<code>calamine</code>), markdown (<code>pulldown-cmark</code>), HTML, and plain text — then indexes the full content so you can search by what's inside the file, not just the filename.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">How do I turn on AI summaries? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            Install <a href="https://ollama.com">Ollama</a> (a free tool that runs AI models on your own machine), then enable it in <strong>Settings → AI Search</strong>. Everything stays local — no API keys, no cloud calls, no data leaving your computer.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">How do I update SearchBox? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            SearchBox can update itself — go to <strong>Settings → About → Check for updates</strong>. It only reaches out to GitHub when you ask (there's an opt-in "check on startup" toggle). Or just download the latest MSI from the <a href="https://github.com/SourceBox-LLC/SearchBox/releases">Releases page</a> and run it; it upgrades in place.
+          </div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question" onclick="toggleFAQ(this)">Is my data really private? <span class="chevron">▼</span></button>
+          <div class="faq-answer"><div class="faq-answer-inner">
+            Yes. SearchBox and its search index bind to <code>127.0.0.1</code> (localhost) only — not your network. The vault is AES-256-GCM encrypted with a key derived from your password via PBKDF2 (600k rounds). Nothing is uploaded, tracked, or sent anywhere. You can read the full details in <a href="https://github.com/SourceBox-LLC/SearchBox/blob/master/SECURITY.md">SECURITY.md</a>.
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA banner ───────────────────────────────────────────────────────────── -->
+  <section style="padding-top: 0;">
+    <div class="container">
+      <div class="cta-banner">
+        <h2>Stop searching for your files.<br>Start finding what's inside them.</h2>
+        <p>Free, private, and runs entirely on your own computer.</p>
+        <div class="hero-ctas">
+          <a href="https://github.com/SourceBox-LLC/SearchBox/releases/latest" class="btn btn-primary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download SearchBox
+          </a>
+          <a href="https://github.com/SourceBox-LLC/SearchBox" class="btn btn-secondary btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ───────────────────────────────────────────────────────────────── -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#" class="logo">
+            <span class="logo-mark">S</span>
+            <span><span class="accent">Search</span>Box</span>
+          </a>
+          <p>A local-first document search engine. Find anything on your computer — instantly, and completely private. Open source, built in Rust.</p>
+        </div>
+        <div class="footer-col">
+          <h5>Product</h5>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#demo">Live Demo</a></li>
+            <li><a href="#download">Download</a></li>
+            <li><a href="#faq">FAQ</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Resources</h5>
+          <ul>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox">GitHub Repo</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/releases">Releases</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/blob/master/CHANGELOG.md">Changelog</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/blob/master/SECURITY.md">Security</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5>Community</h5>
+          <ul>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/discussions">Discussions</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/issues">Report a bug</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/blob/master/README.md">Documentation</a></li>
+            <li><a href="https://github.com/SourceBox-LLC/SearchBox/blob/master/README.md#other-ways-to-run-it">Docker</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© SourceBox LLC · AGPL-3.0</span>
+        <div class="badges">
+          <span class="badge"><span class="dot green"></span> Open Source</span>
+          <span class="badge"><span class="dot blue"></span> Self-Hosted</span>
+          <span class="badge">Private</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+  /* ── FAQ accordion ─────────────────────────────────────────────────────────── */
+  function toggleFAQ(btn) {
+    const item = btn.parentElement;
+    const answer = item.querySelector('.faq-answer');
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item.open').forEach(i => {
+      i.classList.remove('open');
+      i.querySelector('.faq-answer').style.maxHeight = '0';
+    });
+    if (!isOpen) {
+      item.classList.add('open');
+      answer.style.maxHeight = answer.scrollHeight + 'px';
+    }
+  }
+
+  /* ── Interactive demo data ──────────────────────────────────────────────────── */
+  const DOCS = [
+    { title: 'Q3 Financial Report.pdf', type: 'pdf', path: '~/Documents/Finance/',
+      content: 'Quarterly revenue reached $4.2M, a 15% increase over Q2. Operating expenses were kept under budget at $2.8M. The board approved the expansion plan for Q4. Key metrics: customer acquisition cost down 12%, lifetime value up 8%.' },
+    { title: 'Budget 2026 Proposal.docx', type: 'docx', path: '~/Documents/Finance/',
+      content: 'Proposed budget for fiscal year 2026. Total allocation: $12.5M across departments. Engineering receives the largest share at 40%, followed by marketing at 25%. Includes contingency fund of $750K for unexpected expenses.' },
+    { title: 'Annual Revenue Spreadsheet.xlsx', type: 'xlsx', path: '~/Documents/Finance/',
+      content: 'Year-over-year revenue breakdown by quarter. 2025 total: $16.8M. Q1: $3.1M, Q2: $3.7M, Q3: $4.2M, Q4: $5.8M. Growth rate: 22% annually. Projections for 2026 indicate continued upward trend.' },
+    { title: 'Hawaii Vacation Itinerary.pdf', type: 'pdf', path: '~/Documents/Travel/',
+      content: 'Day 1: Arrival in Honolulu, check-in at Waikiki resort. Day 2: Diamond Head hike at sunrise, afternoon beach. Day 3: Pearl Harbor tour, evening luau. Day 4: North Shore road trip, sunset at Sunset Beach. Day 5: Snorkeling at Hanauma Bay.' },
+    { title: 'Maui Trip Photos', type: 'image', path: '~/Pictures/Vacation/',
+      content: 'Collection of 142 images from Maui vacation. Highlights include sunrise at Haleakala, road to Hana, black sand beach at Waiʻānapanapa, and sunset at Kaʻanapali Beach.' },
+    { title: 'Team Meeting Notes — October.md', type: 'md', path: '~/Documents/Notes/',
+      content: 'Attendees: Sarah, Mike, Jennifer, David. Discussed quarterly targets and the new product roadmap. Jennifer raised concerns about the timeline for the API refactor. Action items: Mike to draft the RFP by Friday, David to review the budget allocation.' },
+    { title: 'Employee Handbook 2026.pdf', type: 'pdf', path: '~/Documents/HR/',
+      content: 'Welcome to the team. This handbook covers company policies, benefits, code of conduct, and procedures. Vacation accrual: 15 days year 1, 20 days year 3. Remote work policy updated to allow 3 days per week. Review the security section for vault and password guidelines.' },
+    { title: 'Recipe Collection — Italian.docx', type: 'docx', path: '~/Documents/Personal/',
+      content: 'Authentic carbonara: 200g guanciale, 4 egg yolks, 100g Pecorino Romano, 320g spaghetti. Cacio e pepe: simplest pasta — just cheese and pepper. Margherita pizza: San Marzano tomatoes, fresh mozzarella, basil.' },
+    { title: 'Tax Return 2025.pdf', type: 'pdf', path: '~/Documents/Vault/',
+      content: 'Filed jointly. Total income: $148,200. Deductions: mortgage interest $18,400, charitable contributions $4,200, retirement contributions $6,500. Refund: $2,847. Filed electronically on March 12. These documents are in the vault for security.' },
+    { title: 'Project Aurora — Design Spec.pdf', type: 'pdf', path: '~/Documents/Projects/',
+      content: 'Aurora is a next-generation search interface. Key features: typo-tolerant full-text search, image gallery sidebar, filter shortcuts using :: syntax. Privacy is the core design principle — everything runs locally, nothing leaves the machine.' },
+    { title: 'Wedding Venue Shortlist.xlsx', type: 'xlsx', path: '~/Documents/Personal/',
+      content: 'Five venues compared: The Old Mill ($8K, 150 guests), Lakeside Pavilion ($12K, 200), Garden Terrace ($6K, 100), Historic Manor ($15K, 180), Beachfront Resort ($20K, 250). All include catering except Garden Terrace. Budget ceiling: $15K.' },
+    { title: 'Medical Records — Summary.pdf', type: 'pdf', path: '~/Documents/Vault/',
+      content: 'Annual physical results. Blood pressure: 118/76 (normal). Cholesterol: 165 total, HDL 62, LDL 93. All within healthy ranges. Next checkup in 12 months. Stored in vault for privacy — only accessible with password.' },
+    { title: 'Conference Talk — Rust at Scale.md', type: 'md', path: '~/Documents/Talks/',
+      content: 'How we built a search engine in pure Rust that handles 100k documents with sub-50ms query times. Architecture: Axum web server, SQLite for metadata, Meilisearch for full-text indexing. Key insight: local-first doesn\'t mean slow.' },
+    { title: 'House Blueprints.pdf', type: 'pdf', path: '~/Documents/Home/',
+      content: 'Two-story colonial, 2,800 sq ft. Ground floor: kitchen, living room, dining, study, half bath. Second floor: 4 bedrooms, 2 full baths. Basement: unfinished, 1,400 sq ft potential. Renovation budget: $45K for kitchen and master bath.' },
+    { title: 'Sunset at Kaʻanapali', type: 'image', path: '~/Pictures/Vacation/',
+      content: 'Golden hour over the Pacific. Maui, December 2025. Taken with Sony A7IV, 24-70mm at 35mm, f/8, 1/250s. Part of the Hawaii vacation collection.' },
+    { title: 'Insurance Policy.pdf', type: 'pdf', path: '~/Documents/Vault/',
+      content: 'Homeowners insurance policy. Coverage: $450K dwelling, $225K contents, $300K liability. Deductible: $2,500. Premium: $1,840/year. Effective: January 2026. Stored in vault — contains personal financial details.' },
+  ];
+
+  const TYPE_META = {
+    pdf:   { label: 'PDF',  color: '#f85149', bg: 'rgba(248,81,73,0.12)' },
+    docx:  { label: 'DOCX', color: '#58a6ff', bg: 'rgba(88,166,255,0.12)' },
+    xlsx:  { label: 'XLSX', color: '#3fb950', bg: 'rgba(63,185,80,0.12)' },
+    md:    { label: 'MD',   color: '#bc8cff', bg: 'rgba(188,140,255,0.12)' },
+    image: { label: 'IMG',  color: '#e8873c', bg: 'rgba(232,135,60,0.12)' },
+  };
+
+  const FILTER_MAP = { pdf: 'pdf', docx: 'docx', xlsx: 'xlsx', image: 'image', vault: 'vault', img: 'image' };
+  const VAULT_DOCS = ['Tax Return 2025.pdf', 'Medical Records — Summary.pdf', 'Insurance Policy.pdf'];
+
+  /* ── Typo-tolerant matching (simulated) ────────────────────────────────────── */
+  function fuzzyMatch(query, text) {
+    query = query.toLowerCase();
+    text = text.toLowerCase();
+    if (text.includes(query)) return true;
+    var words = text.split(/\s+/);
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (w.length < 3) continue;
+      if (levenshtein(query, w) <= Math.floor(query.length / 4)) return true;
+    }
+    return false;
+  }
+  function levenshtein(a, b) {
+    var m = a.length, n = b.length;
+    var d = [];
+    for (var i = 0; i <= m; i++) { d[i] = []; d[i][0] = i; }
+    for (var j = 0; j <= n; j++) d[0][j] = j;
+    for (var i = 1; i <= m; i++) {
+      for (var j = 1; j <= n; j++) {
+        var cost = a[i-1] === b[j-1] ? 0 : 1;
+        d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost);
+      }
+    }
+    return d[m][n];
+  }
+
+  /* ── Parse search query (supports :: filters) ──────────────────────────────── */
+  function parseQuery(raw) {
+    var parts = raw.split('::').map(function(s) { return s.trim(); });
+    var text = parts[0];
+    var filters = parts.slice(1).map(function(f) {
+      return f.replace(/^&&$|^||$|^!$/, '').trim();
+    }).filter(function(f) { return f && FILTER_MAP[f]; });
+    return { text: text, filters: filters };
+  }
+
+  /* ── Highlight matches ────────────────────────────────────────────────────── */
+  function highlight(text, query) {
+    if (!query) return text;
+    var re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return text.replace(re, '<mark>$1</mark>');
+  }
+
+  /* ── Search and render ─────────────────────────────────────────────────────── */
+  function handleDemoSearch(value) {
+    var homeState = document.getElementById('homeState');
+    var resultsState = document.getElementById('resultsState');
+    var demoContent = document.getElementById('demoContent');
+
+    if (!value.trim()) {
+      homeState.style.display = 'block';
+      resultsState.style.display = 'none';
+      demoContent.classList.remove('has-results');
+      return;
+    }
+
+    homeState.style.display = 'none';
+    resultsState.style.display = 'block';
+    demoContent.classList.add('has-results');
+
+    // Sync both search inputs
+    var input1 = document.getElementById('demoSearchInput');
+    var input2 = document.getElementById('demoSearchInput2');
+    if (input1 && input1 !== document.activeElement) input1.value = value;
+    if (input2 && input2 !== document.activeElement) input2.value = value;
+
+    var parsed = parseQuery(value);
+    var text = parsed.text;
+    var filters = parsed.filters;
+    var q = text.toLowerCase();
+
+    // Filter docs
+    var results = DOCS.filter(function(doc) {
+      // Type filter
+      if (filters.length > 0) {
+        if (filters.indexOf('vault') !== -1) {
+          if (VAULT_DOCS.indexOf(doc.title) === -1) return false;
+        } else {
+          var typeMatch = false;
+          for (var i = 0; i < filters.length; i++) {
+            if (doc.type === FILTER_MAP[filters[i]]) { typeMatch = true; break; }
+          }
+          if (!typeMatch) return false;
+        }
+      }
+      // Text match (fuzzy on title + content)
+      if (q) {
+        return fuzzyMatch(q, doc.title) || fuzzyMatch(q, doc.content) || fuzzyMatch(q, doc.path);
+      }
+      return true;
+    }).slice(0, 8);
+
+    // Render results
+    var list = document.getElementById('resultsList');
+    var sidebar = document.getElementById('resultsSidebar');
+
+    if (results.length === 0) {
+      list.innerHTML = '<div style="padding:40px; text-align:center; color:var(--text-muted);"><p style="font-size:16px; margin-bottom:8px;">No results found</p><p style="font-size:13px;">Try a different word — SearchBox is typo-tolerant, so close matches work too.</p></div>';
+      sidebar.innerHTML = '';
+    } else {
+      list.innerHTML = results.map(function(doc) {
+        var meta = TYPE_META[doc.type] || TYPE_META.pdf;
+        var titleHl = q ? highlight(doc.title, q) : doc.title;
+        // Find best snippet around the match
+        var snippet = doc.content;
+        if (q) {
+          var lowerContent = doc.content.toLowerCase();
+          var firstWord = q.split(' ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          var re = new RegExp(firstWord, 'i');
+          var match = lowerContent.search(re);
+          if (match > 0) {
+            var start = Math.max(0, match - 40);
+            var end = Math.min(doc.content.length, match + q.length + 100);
+            snippet = (start > 0 ? '…' : '') + doc.content.slice(start, end) + (end < doc.content.length ? '…' : '');
+          }
+        }
+        var snippetHl = q ? highlight(snippet, q) : snippet;
+        return '<div class="result-item">' +
+          '<div class="result-type-badge">' +
+            '<span class="result-icon" style="background:' + meta.bg + '; color:' + meta.color + '">' + meta.label + '</span>' +
+            '<span style="color:' + meta.color + '">' + meta.label + '</span>' +
+            '<span style="opacity:0.5">·</span>' +
+            '<span>' + doc.path + '</span>' +
+          '</div>' +
+          '<div class="result-title">' + titleHl + '</div>' +
+          '<div class="result-snippet">' + snippetHl + '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // Image gallery in sidebar
+    var imageDocs = DOCS.filter(function(d) { return d.type === 'image'; });
+    if (imageDocs.length > 0) {
+      sidebar.innerHTML =
+        '<h4>Images</h4>' +
+        '<div class="img-gallery">' +
+          imageDocs.slice(0, 4).map(function(d) {
+            return '<div class="img-gallery-item" title="' + d.title + '">' +
+              '<div class="placeholder">' + d.title.split('—')[0].trim().split(' ').slice(0,2).join(' ') + '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+    } else {
+      sidebar.innerHTML = '';
+    }
+  }
+
+  function demoAction(action) {
+    var input = document.getElementById('demoSearchInput');
+    if (action === 'documents') { input.value = ''; handleDemoSearch(''); input.focus(); }
+    if (action === 'images') { input.value = 'vacation ::image'; handleDemoSearch('vacation ::image'); }
+    if (action === 'explore') { input.value = 'budget'; handleDemoSearch('budget'); }
+  }
+
+  // Animate the index count
+  (function animateCount() {
+    var el = document.getElementById('demoIndexCount');
+    var n = 0; var target = 14238;
+    var step = Math.ceil(target / 60);
+    var timer = setInterval(function() {
+      n += step;
+      if (n >= target) { n = target; clearInterval(timer); }
+      el.textContent = n.toLocaleString() + ' documents indexed';
+    }, 25);
+  })();
+
+  // Auto-type demo suggestions on first scroll into view
+  var demoStarted = false;
+  var demoObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting && !demoStarted) {
+        demoStarted = true;
+        var hints = [
+          "Search your documents... Try 'budget ::pdf'",
+          "Search your documents... Try 'vacation ::image'",
+          "Search your documents... Try 'taxes ::vault'",
+          "Search your documents... Try 'quarterly'"
+        ];
+        var hi = 0;
+        var input = document.getElementById('demoSearchInput');
+        if (input) {
+          setInterval(function() {
+            if (document.activeElement === input || input.value) return;
+            input.setAttribute('placeholder', hints[hi++ % hints.length]);
+          }, 3000);
+        }
+      }
+    });
+  }, { threshold: 0.3 });
+  demoObserver.observe(document.getElementById('demo'));
+  </script>
+</body>
+</html>
