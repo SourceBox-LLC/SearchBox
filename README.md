@@ -3,11 +3,14 @@
 **Find anything on your computer — instantly, and completely private.**
 
 <p align="center">
+  <a href="https://sourcebox-llc.github.io/SearchBox/"><img src="https://img.shields.io/badge/website-sourcebox--llc.github.io-blue?style=flat" alt="Website"></a>
   <a href="https://github.com/SourceBox-LLC/SearchBox"><img src="https://img.shields.io/github/stars/SourceBox-LLC/SearchBox?style=social&label=Star" alt="Star this repo"></a>
   <a href="https://github.com/SourceBox-LLC/SearchBox/releases"><img src="https://img.shields.io/badge/platform-Windows-blue" alt="Platform: Windows"></a>
   <img src="https://img.shields.io/badge/license-AGPL_v3-blue.svg" alt="License: AGPL v3">
   &nbsp; If SearchBox is useful to you, please ⭐ <a href="https://github.com/SourceBox-LLC/SearchBox">star the repo</a> — it helps others find it.
 </p>
+
+🌐 **[Try the interactive demo on the website →](https://sourcebox-llc.github.io/SearchBox/)** — search a simulated document index right in your browser.
 
 SearchBox looks *inside* your files — PDFs, Word documents, spreadsheets,
 notes, web pages, even images — and finds what you're after in a blink, even
